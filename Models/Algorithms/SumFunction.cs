@@ -13,8 +13,10 @@ public class SumFunction : VectorAlgorithm
 
     public override void Execute()
     {
-        // TODO: Реализовать алгоритм
-        // Вычислить сумму всех элементов _workingData
-        throw new NotImplementedException("Реализуйте алгоритм суммы элементов");
+        int sum = 0;
+        for (int i = 0; i < _workingData.Length; i++)
+        {
+            sum += _workingData[i];
+        }
     }
 }
