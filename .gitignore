@@ -1,0 +1,17 @@
+# Скомпилированные файлы
+bin/
+obj/
+
+# Кэш Visual Studio / Rider
+.vs/
+.idea/
+
+# Личные настройки пользователя
+*.user
+*.suo
+*.userosscache
+*.sln.docstates
+
+# Прочее
+*.log
+*.tmp
