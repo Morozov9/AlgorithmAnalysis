@@ -13,8 +13,10 @@ public class ProductFunction : VectorAlgorithm
 
     public override void Execute()
     {
-        // TODO: Реализовать алгоритм
-        // Вычислить произведение всех элементов _workingData
-        throw new NotImplementedException("Реализуйте алгоритм произведения элементов");
+        double product = 1;
+        for (int i = 0; i < _workingData.Length; i++)
+        {
+            product *= _workingData[i];
+        }
     }
 }
