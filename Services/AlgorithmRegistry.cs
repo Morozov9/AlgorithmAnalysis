@@ -49,6 +49,9 @@ public static class AlgorithmRegistry
             
             // II — Матричное умножение
             new MatrixMultiplication(),
+            
+            // III - MergeSort
+            new MergeSortAlgorithm()
         ];
     }
 
