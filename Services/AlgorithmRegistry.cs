@@ -66,13 +66,30 @@ public static class AlgorithmRegistry
     {
         return algorithm.TheoreticalComplexityLabel switch
         {
-            "O(n³)" => [10, 25, 50, 75, 100, 150, 200, 250, 300, 400, 500],
-            "O(n²)" => [100, 250, 500, 1000, 2000, 3000, 5000, 7000, 10000],
-            "O(n log n)" => [100, 500, 1000, 2000, 5000, 10000, 20000, 50000, 100000],
-            "O(n)" => [100, 500, 1000, 5000, 10000, 50000, 100000, 500000, 1000000],
-            "O(log n)" => [10, 100, 1000, 10000, 100000, 1000000, 10000000],
-            "O(1)" => [10, 100, 1000, 10000, 100000, 1000000],
-            _ => [100, 500, 1000, 2000, 5000, 10000, 20000, 50000]
+            "O(n³)" => BuildSizes(min: 10, max: 500, count: 20),
+            "O(n²)" => BuildSizes(min: 100, max: 10000, count: 30),
+            "O(n log n)" => BuildSizes(min: 100, max: 100000, count: 50),
+            "O(n)" => BuildSizes(min: 100, max: 1000000, count: 1000),
+            "O(log n)" => BuildSizes(min: 10, max: 10000000, count: 1000),
+            "O(1)" => BuildSizes(min: 10, max: 1000000, count: 1000),
+            _ => BuildSizes(min: 100, max: 50000, count: 50)
         };
+    }
+
+    private static int[] BuildSizes(int min, int max, int count)
+    {
+        if (count < 2) return [min];
+
+        var sizes = new int[count];
+        double ratio = Math.Pow((double)max / min, 1.0 / (count - 1));
+
+        double current = min;
+        for (int i = 0; i < count; i++)
+        {
+            sizes[i] = (int)Math.Round(current);
+            current *= ratio;
+        }
+
+        return sizes.Distinct().ToArray();
     }
 }
