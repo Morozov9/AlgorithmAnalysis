@@ -16,9 +16,20 @@ public class PolynomialNaive : VectorAlgorithm
 
     public override void Execute()
     {
-        // TODO: Реализовать алгоритм
-        // P(x) = v1*x^0 + v2*x^1 + v3*x^2 + ... + vn*x^(n-1)
-        // Наивно: для каждого члена вычислять x^k заново (без Math.Pow!)
-        throw new NotImplementedException("Реализуйте наивное вычисление полинома");
+        double x = 1.5;
+        double result = 0;
+
+        for (int k = 0; k < _workingData.Length; k++)
+        {
+            // Считаем x^k 
+            double power = 1;
+            for (int j = 0; j < k; j++)
+            {
+                power *= x;
+            }
+
+            // Прибавляем v[k] · x^k
+            result += _workingData[k] * power;
+        }
     }
 }
