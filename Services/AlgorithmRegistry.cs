@@ -68,7 +68,7 @@ public static class AlgorithmRegistry
         {
             "O(n³)" => BuildSizes(min: 10, max: 500, count: 20),
             "O(n²)" => BuildSizes(min: 100, max: 10000, count: 30),
-            "O(n log n)" => BuildSizes(min: 100, max: 100000, count: 50),
+            "O(n log n)" => BuildSizes(min: 100, max: 100000, count: 500),
             "O(n)" => BuildSizes(min: 100, max: 1000000, count: 1000),
             "O(log n)" => BuildSizes(min: 10, max: 10000000, count: 1000),
             "O(1)" => BuildSizes(min: 10, max: 1000000, count: 1000),

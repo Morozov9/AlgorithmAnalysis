@@ -41,6 +41,14 @@ public class BenchmarkService
 
         await Task.Run(() => algorithm.GenerateMasterData(maxN, random), cancellationToken);
 
+        await Task.Run(() =>
+        {
+            algorithm.PrepareData(10);
+            algorithm.Execute();   // раз
+            algorithm.Execute();   // два
+            algorithm.Execute();   // три — точно разогрелся
+        }, cancellationToken);
+
         var stopwatch = new Stopwatch();
         int totalExperiments = sizes.Length;
 
@@ -55,8 +63,7 @@ public class BenchmarkService
             {
                 // Подготовить данные (срез из мастер-данных)
                 algorithm.PrepareData(n);
-
-                // Прогрев: первый запуск для JIT-компиляции (если run == 0 и n == sizes[0])
+ 
                 // Замер времени
                 stopwatch.Restart();
                 await Task.Run(() => algorithm.Execute(), cancellationToken);
