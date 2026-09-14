@@ -1,4 +1,5 @@
 using System.Collections.ObjectModel;
+using System.Diagnostics;
 using System.IO;
 using Avalonia.Media.Imaging;
 using CommunityToolkit.Mvvm.ComponentModel;
@@ -12,6 +13,7 @@ namespace AlgorithmAnalysis.ViewModels;
 public partial class MainViewModel : ViewModelBase
 {
     private readonly BenchmarkService _benchmarkService = new();
+    private readonly ReportService _reportService = new();
     private CancellationTokenSource? _cts;
 
     // Храним ScottPlot.Plot для экспорта в файл
@@ -32,7 +34,7 @@ public partial class MainViewModel : ViewModelBase
     [ObservableProperty]
     public partial BenchmarkResult? CurrentBenchmark { get; set; }
 
-    /// <summary>Изображение графика для отображения в Image</summary>
+    /// <summary>Изображение графика для отображения в Image (обратная совместимость)</summary>
     [ObservableProperty]
     public partial Bitmap? ChartImageSource { get; set; }
 
@@ -44,15 +46,23 @@ public partial class MainViewModel : ViewModelBase
     [ObservableProperty]
     public partial string StatusText { get; set; } = "Выберите алгоритм и нажмите «Запустить»";
 
-    /// <summary>Идёт ли бенчмарк</summary>
+    /// <summary>Текст координат и ближайшей точки при наведении курсора на график</summary>
+    [ObservableProperty]
+    public partial string HoverCoordinatesText { get; set; } = "Наведите курсор на график для просмотра координат";
+
+    /// <summary>Идёт ли бенчмарк или генерация отчёта</summary>
     [ObservableProperty]
     [NotifyCanExecuteChangedFor(nameof(RunBenchmarkCommand))]
+    [NotifyCanExecuteChangedFor(nameof(GenerateReportCommand))]
     [NotifyCanExecuteChangedFor(nameof(CancelCommand))]
     public partial bool IsRunning { get; set; }
 
     /// <summary>Рекомендуемые размеры для выбранного алгоритма</summary>
     [ObservableProperty]
     public partial string SizesText { get; set; } = string.Empty;
+
+    /// <summary>Событие обновления данных графика для интерактивного AvaPlot</summary>
+    public event EventHandler<BenchmarkResult>? BenchmarkPlotUpdated;
 
     partial void OnSelectedAlgorithmChanged(AbstractAlgorithm? value)
     {
@@ -82,7 +92,7 @@ public partial class MainViewModel : ViewModelBase
             var sizes = ParseSizes(SizesText);
             if (sizes.Length == 0)
             {
-                StatusText = "⚠ Укажите размеры данных (через запятую)";
+                StatusText = "⚠ Укажите размеры данных (через запятую или в виде 1..2000:50)";
                 return;
             }
 
@@ -131,8 +141,86 @@ public partial class MainViewModel : ViewModelBase
         }
     }
 
+    private bool CanGenerateReport() => !IsRunning;
+
+    [RelayCommand(CanExecute = nameof(CanGenerateReport))]
+    private async Task GenerateReport(CancellationToken cancellationToken)
+    {
+        IsRunning = true;
+        Progress = 0;
+        StatusText = "Запуск генерации полного отчёта...";
+
+        _cts = CancellationTokenSource.CreateLinkedTokenSource(cancellationToken);
+
+        try
+        {
+            string htmlPath = await _reportService.GenerateFullReportAsync(
+                (status, progress) =>
+                {
+                    Avalonia.Threading.Dispatcher.UIThread.Post(() =>
+                    {
+                        StatusText = status;
+                        Progress = (int)(progress * 100);
+                    });
+                },
+                _cts.Token
+            );
+
+            StatusText = $"Отчёт успешно создан: {Path.GetFileName(htmlPath)}";
+
+            // Открываем созданный HTML-отчёт в браузере по умолчанию
+            try
+            {
+                Process.Start(new ProcessStartInfo
+                {
+                    FileName = htmlPath,
+                    UseShellExecute = true
+                });
+            }
+            catch
+            {
+                // Игнорируем ошибку запуска внешнего процесса
+            }
+        }
+        catch (OperationCanceledException)
+        {
+            StatusText = "Генерация отчёта отменена";
+        }
+        catch (Exception ex)
+        {
+            StatusText = $"Ошибка при генерации отчёта: {ex.Message}";
+        }
+        finally
+        {
+            IsRunning = false;
+            Progress = 100;
+        }
+    }
+
     /// <summary>
-    /// Рендерит ScottPlot график в Avalonia Bitmap.
+    /// Обновляет отображение координат под курсором и находит ближайшую точку замера.
+    /// </summary>
+    public void UpdateHoverCoordinates(double x, double y)
+    {
+        if (Results.Count == 0)
+        {
+            HoverCoordinatesText = $"Курсор: n = {x:F0}, T = {y:F4} мс";
+            return;
+        }
+
+        var nearest = Results.OrderBy(r => Math.Abs(r.N - x)).FirstOrDefault();
+        if (nearest != null)
+        {
+            HoverCoordinatesText = $"Курсор: n = {x:F0}, T = {y:F4} мс | Ближайшая точка: n = {nearest.N} → Tэксп = {nearest.AverageTimeMs:F4} мс (Tтеор = {nearest.TheoreticalTimeMs:F4} мс)";
+        }
+        else
+        {
+            HoverCoordinatesText = $"Курсор: n = {x:F0}, T = {y:F4} мс";
+        }
+    }
+
+    /// <summary>
+    /// Рендерит ScottPlot график в Avalonia Bitmap и уведомляет интерактивный контрол.
     /// </summary>
     private void RenderChart(BenchmarkResult benchmark)
     {
@@ -169,18 +257,90 @@ public partial class MainViewModel : ViewModelBase
         byte[] pngBytes = plt.GetImageBytes(1100, 450, ImageFormat.Png);
         using var ms = new MemoryStream(pngBytes);
         ChartImageSource = new Bitmap(ms);
+
+        // Уведомляем интерактивный график AvaPlot
+        BenchmarkPlotUpdated?.Invoke(this, benchmark);
     }
 
-    private static int[] ParseSizes(string text)
+    /// <summary>
+    /// Парсит строку размеров: поддерживает как числа через запятую/пробел,
+    /// так и диапазоны вида start..end:step (например, 1..2000:50).
+    /// </summary>
+    public static int[] ParseSizes(string text)
     {
         if (string.IsNullOrWhiteSpace(text)) return [];
 
-        return text.Split([',', ' ', ';', '\n', '\r'], StringSplitOptions.RemoveEmptyEntries)
-                   .Select(s => s.Trim())
-                   .Where(s => int.TryParse(s, out _))
-                   .Select(int.Parse)
-                   .OrderBy(n => n)
-                   .ToArray();
+        var result = new HashSet<int>();
+        var tokens = text.Split([',', ';', '\n', '\r'], StringSplitOptions.RemoveEmptyEntries);
+
+        foreach (var rawToken in tokens)
+        {
+            var token = rawToken.Trim();
+            if (string.IsNullOrEmpty(token)) continue;
+
+            if (token.Contains(".."))
+            {
+                string[] rangeParts = token.Split(':');
+                string rangeSpan = rangeParts[0];
+                int step = 50;
+
+                if (rangeParts.Length > 1 && int.TryParse(rangeParts[1].Trim(), out int parsedStep) && parsedStep > 0)
+                {
+                    step = parsedStep;
+                }
+
+                string[] bounds = rangeSpan.Split([".."], StringSplitOptions.RemoveEmptyEntries);
+                if (bounds.Length == 2 &&
+                    int.TryParse(bounds[0].Trim(), out int start) &&
+                    int.TryParse(bounds[1].Trim(), out int end) &&
+                    start <= end)
+                {
+                    for (int n = start; n <= end; n += step)
+                    {
+                        result.Add(n);
+                    }
+                    if (!result.Contains(end))
+                    {
+                        result.Add(end);
+                    }
+                    continue;
+                }
+            }
+
+            if (int.TryParse(token, out int singleVal) && singleVal > 0)
+            {
+                result.Add(singleVal);
+            }
+            else
+            {
+                var subTokens = token.Split(' ', StringSplitOptions.RemoveEmptyEntries);
+                foreach (var st in subTokens)
+                {
+                    if (int.TryParse(st, out int sv) && sv > 0)
+                    {
+                        result.Add(sv);
+                    }
+                }
+            }
+        }
+
+        return result.OrderBy(n => n).ToArray();
+    }
+
+    [RelayCommand]
+    private void SetLabSizes()
+    {
+        SizesText = "1..2000:50";
+    }
+
+    [RelayCommand]
+    private void SetRecommendedSizes()
+    {
+        if (SelectedAlgorithm != null)
+        {
+            var sizes = AlgorithmRegistry.GetRecommendedSizes(SelectedAlgorithm);
+            SizesText = string.Join(", ", sizes);
+        }
     }
 
     private bool CanCancel() => IsRunning;

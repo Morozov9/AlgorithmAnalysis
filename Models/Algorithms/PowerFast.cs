@@ -1,22 +1,43 @@
 namespace AlgorithmAnalysis.Models.Algorithms;
 
 /// <summary>
-/// Задание I.8: Быстрое возведение в степень (бинарное).
+/// Задание I.8 (Рис. 3): Быстрый алгоритм возведения в степень (QuickPow).
+/// Итеративный алгоритм на основе двоичного разложения.
 /// Теоретическая сложность: O(log n)
-/// (n — показатель степени)
 /// </summary>
-public class PowerFast : VectorAlgorithm
+public class PowerFast : PowerAlgorithm
 {
-    public override string Name => "Возведение в степень (быстрое)";
+    public override string Name => "Возведение в степень: быстрый (QuickPow)";
     public override string TheoreticalComplexityLabel => "O(log n)";
-    public override string Group => "Возведение в степень";
 
     public override double TheoreticalComplexity(int n) => Math.Log2(n > 0 ? n : 1);
 
     public override void Execute()
     {
-        // TODO: Реализовать быстрое возведение в степень
-        // base^n через двоичное разложение показателя (бинарное возведение)
-        throw new NotImplementedException("Реализуйте быстрое возведение в степень");
+        if (_n == 0)
+        {
+            _result = 1.0;
+            return;
+        }
+
+        double c = BaseX;
+        int k = _n;
+        double f = (k % 2 == 1) ? c : 1.0;
+
+        while (true)
+        {
+            k /= 2;
+            c *= c;
+
+            if (k % 2 == 1)
+            {
+                f *= c;
+            }
+
+            if (k == 0)
+                break;
+        }
+
+        _result = f;
     }
 }

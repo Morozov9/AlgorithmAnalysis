@@ -6,6 +6,8 @@ namespace AlgorithmAnalysis.Models.Algorithms;
 /// </summary>
 public class SumFunction : VectorAlgorithm
 {
+    private long _sum;
+
     public override string Name => "f(v) = Σvk (сумма элементов)";
     public override string TheoreticalComplexityLabel => "O(n)";
 
@@ -13,10 +15,11 @@ public class SumFunction : VectorAlgorithm
 
     public override void Execute()
     {
-        int sum = 0;
+        long sum = 0;
         for (int i = 0; i < _workingData.Length; i++)
         {
             sum += _workingData[i];
         }
+        _sum = sum;
     }
 }

@@ -1,23 +1,28 @@
 namespace AlgorithmAnalysis.Models.Algorithms;
 
 /// <summary>
-/// Задание I.8: Алгоритмы возведения в степень.
-/// Здесь можно реализовать наивное возведение и быстрое возведение в степень.
-/// Теоретическая сложность наивного: O(n), быстрого: O(log n)
-/// (n — показатель степени)
+/// Задание I.8 (Рис. 1): Возведение в степень (простой итеративный алгоритм).
+/// По формуле f = 1; while (k < n) { f = f * x; k++; }
+/// Теоретическая сложность: O(n)
 /// </summary>
-public class PowerNaive : VectorAlgorithm
+public class PowerNaive : PowerAlgorithm
 {
-    public override string Name => "Возведение в степень (наивное)";
+    public override string Name => "Возведение в степень: простой (Pow)";
     public override string TheoreticalComplexityLabel => "O(n)";
-    public override string Group => "Возведение в степень";
 
     public override double TheoreticalComplexity(int n) => n;
 
     public override void Execute()
     {
-        // TODO: Реализовать наивное возведение в степень
-        // base^n путём последовательного умножения
-        throw new NotImplementedException("Реализуйте наивное возведение в степень");
+        double f = 1.0;
+        int k = 0;
+
+        while (k < _n)
+        {
+            f *= BaseX;
+            k++;
+        }
+
+        _result = f;
     }
 }

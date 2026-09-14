@@ -13,7 +13,8 @@ public class ConstantFunction : VectorAlgorithm
 
     public override void Execute()
     {
-        // f(v) = 1 — просто возвращаем 1, не обращаясь к элементам вектора
+        // f(v) = 1 — фиксированная операция без обхода вектора
         int result = 1;
+        System.GC.KeepAlive(result);
     }
 }

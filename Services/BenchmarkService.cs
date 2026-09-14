@@ -17,6 +17,7 @@ public class BenchmarkService
 
     /// <summary>
     /// Запускает серию экспериментов для алгоритма.
+    /// Выполняется асинхронно в фоновом потоке, не блокируя интерфейс.
     /// </summary>
     /// <param name="algorithm">Алгоритм для тестирования</param>
     /// <param name="sizes">Массив размеров данных [n1, n2, ..., nk]</param>
@@ -35,69 +36,75 @@ public class BenchmarkService
             ComplexityLabel = algorithm.TheoreticalComplexityLabel
         };
 
-        // Генерируем мастер-данные максимального размера (один раз)
+        if (sizes.Length == 0) return result;
+
         int maxN = sizes.Max();
         var random = new Random(RandomSeed);
 
-        await Task.Run(() => algorithm.GenerateMasterData(maxN, random), cancellationToken);
-
-        await Task.Run(() =>
+        return await Task.Run(() =>
         {
-            algorithm.PrepareData(10);
-            algorithm.Execute();   // раз
-            algorithm.Execute();   // два
-            algorithm.Execute();   // три — точно разогрелся
-        }, cancellationToken);
-
-        var stopwatch = new Stopwatch();
-        int totalExperiments = sizes.Length;
-
-        for (int i = 0; i < sizes.Length; i++)
-        {
+            // 1. Генерируем мастер-данные максимального размера (один раз)
+            algorithm.GenerateMasterData(maxN, random);
             cancellationToken.ThrowIfCancellationRequested();
 
-            int n = sizes[i];
-            var runTimes = new double[RunsPerSize];
+            // 2. Прогрев JIT (Warmup), чтобы первый замер не включал JIT-компиляцию
+            int warmupN = Math.Min(10, maxN);
+            algorithm.PrepareData(warmupN);
+            algorithm.Execute();
+            algorithm.Execute();
+            algorithm.Execute();
 
-            for (int run = 0; run < RunsPerSize; run++)
+            var stopwatch = new Stopwatch();
+            int totalExperiments = sizes.Length;
+
+            // 3. Серия замеров для каждого размера n
+            for (int i = 0; i < sizes.Length; i++)
             {
-                // Подготовить данные (срез из мастер-данных)
-                algorithm.PrepareData(n);
- 
-                // Замер времени
-                stopwatch.Restart();
-                await Task.Run(() => algorithm.Execute(), cancellationToken);
-                stopwatch.Stop();
+                cancellationToken.ThrowIfCancellationRequested();
 
-                runTimes[run] = stopwatch.Elapsed.TotalMilliseconds;
+                int n = sizes[i];
+                var runTimes = new double[RunsPerSize];
+
+                for (int run = 0; run < RunsPerSize; run++)
+                {
+                    // Подготовка данных (копирование среза) — строго до запуска секундомера
+                    algorithm.PrepareData(n);
+
+                    // Точный замер чистого выполнения алгоритма без Task.Run оверхеда
+                    stopwatch.Restart();
+                    algorithm.Execute();
+                    stopwatch.Stop();
+
+                    runTimes[run] = stopwatch.Elapsed.TotalMilliseconds;
+                }
+
+                // Среднее время по 5 запускам (согласно заданию лабы)
+                double avgTime = runTimes.Average();
+
+                result.Results.Add(new ExperimentResult
+                {
+                    N = n,
+                    AverageTimeMs = avgTime,
+                    AllRunsMs = runTimes
+                });
+
+                // Отчёт о прогрессе
+                progress?.Invoke((double)(i + 1) / totalExperiments);
             }
 
-            // Среднее время из всех запусков
-            double avgTime = runTimes.Average();
+            // 4. Подбираем коэффициент c для теоретической кривой T = c·f(n)
+            // Метод наименьших квадратов: c = Σ(Ti · f(ni)) / Σ(f(ni)²)
+            FitTheoreticalCurve(algorithm, result);
 
-            result.Results.Add(new ExperimentResult
-            {
-                N = n,
-                AverageTimeMs = avgTime,
-                AllRunsMs = runTimes
-            });
-
-            // Отчёт о прогрессе
-            progress?.Invoke((double)(i + 1) / totalExperiments);
-        }
-
-        // Подбираем коэффициент c для теоретической кривой: T_теор = c · f(n)
-        // Метод наименьших квадратов: c = Σ(Ti · f(ni)) / Σ(f(ni)²)
-        FitTheoreticalCurve(algorithm, result);
-
-        return result;
+            return result;
+        }, cancellationToken);
     }
 
     /// <summary>
     /// Подбирает коэффициент c для теоретической кривой T = c·f(n)
     /// методом наименьших квадратов.
     /// </summary>
-    private void FitTheoreticalCurve(AbstractAlgorithm algorithm, BenchmarkResult result)
+    private static void FitTheoreticalCurve(AbstractAlgorithm algorithm, BenchmarkResult result)
     {
         double numerator = 0;
         double denominator = 0;

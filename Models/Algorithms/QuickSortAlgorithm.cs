@@ -16,8 +16,38 @@ public class QuickSortAlgorithm : VectorAlgorithm
 
     public override void Execute()
     {
-        // TODO: Реализовать алгоритм быстрой сортировки
-        // Работать с массивом _workingData
-        throw new NotImplementedException("Реализуйте быструю сортировку");
+        if (_workingData.Length > 1)
+        {
+            QuickSort(_workingData, 0, _workingData.Length - 1);
+        }
+    }
+
+    private static void QuickSort(int[] arr, int low, int high)
+    {
+        if (low < high)
+        {
+            int p = Partition(arr, low, high);
+            QuickSort(arr, low, p);
+            QuickSort(arr, p + 1, high);
+        }
+    }
+
+    private static int Partition(int[] arr, int low, int high)
+    {
+        // Выбираем опорный элемент из середины для устойчивости к частично упорядоченным данным
+        int pivot = arr[low + (high - low) / 2];
+        int i = low - 1;
+        int j = high + 1;
+
+        while (true)
+        {
+            do { i++; } while (arr[i] < pivot);
+            do { j--; } while (arr[j] > pivot);
+
+            if (i >= j)
+                return j;
+
+            (arr[i], arr[j]) = (arr[j], arr[i]);
+        }
     }
 }

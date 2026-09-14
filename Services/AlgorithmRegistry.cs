@@ -11,7 +11,6 @@ public static class AlgorithmRegistry
 {
     /// <summary>
     /// Возвращает список всех доступных алгоритмов.
-    /// Чтобы добавить новый алгоритм — просто добавьте его в этот список.
     /// </summary>
     public static List<AbstractAlgorithm> GetAllAlgorithms()
     {
@@ -41,42 +40,81 @@ public static class AlgorithmRegistry
             // I.7 — Timsort
             new TimSortAlgorithm(),
             
-            // I.8 — Возведение в степень (наивное)
+            // I.8a — Возведение в степень: простой итеративный (Рис. 1, Pow)
             new PowerNaive(),
+
+            // I.8b — Возведение в степень: рекурсивный (Рис. 2, RecPow)
+            new PowerRecursive(),
             
-            // I.8 — Возведение в степень (быстрое)
+            // I.8c — Возведение в степень: быстрый (Рис. 3, QuickPow)
             new PowerFast(),
+
+            // I.8d — Возведение в степень: классический быстрый (Рис. 4, QuickPow1)
+            new PowerClassic(),
             
             // II — Матричное умножение
             new MatrixMultiplication(),
             
-            // III - MergeSort
-            new MergeSortAlgorithm()
+            // III — Сортировка слиянием
+            new MergeSortAlgorithm(),
+
+            // III — Сортировка вставками (Insertion Sort)
+            new InsertionSortAlgorithm()
         ];
     }
 
     /// <summary>
     /// Возвращает рекомендуемые размеры данных для алгоритма.
-    /// Подобраны так, чтобы на графиках было хорошо видно кривую:
-    /// — Для O(n³) и O(n²) — маленькие размеры (иначе будет очень долго)
-    /// — Для O(n log n) и O(n) — можно побольше
-    /// — Для O(1) и O(log n) — ещё больше
+    /// Подобраны с учётом задания (n от 1 до 2000) и сложности алгоритма,
+    /// чтобы графики строились быстро и наглядно отражали теоретические кривые.
     /// </summary>
     public static int[] GetRecommendedSizes(AbstractAlgorithm algorithm)
     {
         return algorithm.TheoreticalComplexityLabel switch
         {
-            "O(n³)" => BuildSizes(min: 10, max: 500, count: 20),
-            "O(n²)" => BuildSizes(min: 100, max: 10000, count: 30),
-            "O(n log n)" => BuildSizes(min: 100, max: 100000, count: 500),
-            "O(n)" => BuildSizes(min: 100, max: 1000000, count: 1000),
-            "O(log n)" => BuildSizes(min: 10, max: 10000000, count: 1000),
-            "O(1)" => BuildSizes(min: 10, max: 1000000, count: 1000),
-            _ => BuildSizes(min: 100, max: 50000, count: 50)
+            // Для O(n³) ограничено 300, чтобы избежать зависания (2000³ операций = 8 млрд)
+            "O(n³)" => BuildLinearSizes(min: 10, max: 300, step: 20),
+
+            // Для O(n²) диапазон в точности соответствует лабораторной работе (до 2000)
+            "O(n²)" => BuildLinearSizes(min: 50, max: 2000, step: 50),
+
+            // Для O(n log n) диапазон до 2000 с шагом 50
+            "O(n log n)" => BuildLinearSizes(min: 50, max: 2000, step: 50),
+
+            // Для O(n) диапазон до 2000 с шагом 50
+            "O(n)" => BuildLinearSizes(min: 50, max: 2000, step: 50),
+
+            // Для O(log n) логарифмическая шкала для лучшей наглядности кривой
+            "O(log n)" => BuildSizes(min: 10, max: 2000000, count: 40),
+
+            // Для O(1) диапазон до 2000 с шагом 50
+            "O(1)" => BuildLinearSizes(min: 50, max: 2000, step: 50),
+
+            _ => BuildLinearSizes(min: 50, max: 2000, step: 50)
         };
     }
 
-    private static int[] BuildSizes(int min, int max, int count)
+    /// <summary>
+    /// Создает массив размеров с равномерным линейным шагом.
+    /// </summary>
+    public static int[] BuildLinearSizes(int min, int max, int step)
+    {
+        var list = new List<int>();
+        for (int val = min; val <= max; val += step)
+        {
+            list.Add(val);
+        }
+        if (list.Count == 0 || list[^1] != max)
+        {
+            list.Add(max);
+        }
+        return [.. list.Distinct()];
+    }
+
+    /// <summary>
+    /// Создает массив размеров в геометрической прогрессии.
+    /// </summary>
+    public static int[] BuildSizes(int min, int max, int count)
     {
         if (count < 2) return [min];
 

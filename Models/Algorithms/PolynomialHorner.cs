@@ -8,6 +8,7 @@ namespace AlgorithmAnalysis.Models.Algorithms;
 public class PolynomialHorner : VectorAlgorithm
 {
     private const double X = 1.5;
+    private double _result;
 
     public override string Name => "Полином (метод Горнера), x=1.5";
     public override string TheoreticalComplexityLabel => "O(n)";
@@ -16,13 +17,14 @@ public class PolynomialHorner : VectorAlgorithm
 
     public override void Execute()
     {
-        double x = 1.5;
         double result = 0;
 
         // Идём справа налево
         for (int i = _workingData.Length - 1; i >= 0; i--)
         {
-            result = _workingData[i] + x * result;
+            result = _workingData[i] + X * result;
         }
+
+        _result = result;
     }
 }
