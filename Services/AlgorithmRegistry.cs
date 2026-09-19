@@ -59,7 +59,10 @@ public static class AlgorithmRegistry
             new MergeSortAlgorithm(),
 
             // III — Сортировка вставками (Insertion Sort)
-            new InsertionSortAlgorithm()
+            new InsertionSortAlgorithm(),
+
+            // IV — Числа Фибоначчи (рекурсивный)
+            new FibonacciRecursive()
         ];
     }
 
@@ -89,6 +92,9 @@ public static class AlgorithmRegistry
 
             // Для O(1) диапазон до 2000 с шагом 50
             "O(1)" => BuildLinearSizes(min: 50, max: 2000, step: 50),
+
+            // Для O(2^n) — только малые значения! F(36) уже считается ~секунду, F(40) — десятки секунд
+            "O(2^n)" => BuildLinearSizes(min: 1, max: 35, step: 1),
 
             _ => BuildLinearSizes(min: 50, max: 2000, step: 50)
         };

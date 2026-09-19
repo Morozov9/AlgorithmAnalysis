@@ -24,7 +24,7 @@
                 BorderBrush="{DynamicResource SystemControlForegroundBaseLowBrush}" 
                 BorderThickness="1"
                 CornerRadius="8" Padding="12" Margin="0,0,8,0">
-            <Grid RowDefinitions="Auto,Auto,Auto,Auto,Auto,*,Auto">
+            <Grid RowDefinitions="Auto,Auto,Auto,Auto,Auto,Auto,*,Auto">
 
                 <!-- 0. Заголовок -->
                 <TextBlock Grid.Row="0" Text="Выбор алгоритма" FontWeight="Bold" FontSize="15" Margin="0,0,0,8"/>
@@ -87,19 +87,30 @@
                             FontWeight="Bold"/>
                 </Grid>
 
+                <!-- 3b. Кэш — чекбокс и статус -->
+                <StackPanel Grid.Row="4" Spacing="4" Margin="0,8,0,0">
+                    <CheckBox Content="Принудительный пересчёт (игнорировать кэш)"
+                              IsChecked="{Binding ForceRecalculate}"
+                              FontSize="11"/>
+                    <TextBlock Text="{Binding CacheStatusText}"
+                               TextWrapping="Wrap" FontSize="10"
+                               Foreground="{DynamicResource SystemControlHighlightAccentBrush}"
+                               IsVisible="{Binding CacheStatusText, Converter={x:Static StringConverters.IsNotNullOrEmpty}}"/>
+                </StackPanel>
+
                 <!-- 4. Прогресс и статус -->
-                <StackPanel Grid.Row="4" Spacing="4" Margin="0,10,0,0">
+                <StackPanel Grid.Row="5" Spacing="4" Margin="0,6,0,0">
                     <ProgressBar Value="{Binding Progress}" Minimum="0" Maximum="100" Height="6"/>
                     <TextBlock Text="{Binding StatusText}"
                                TextWrapping="Wrap" FontSize="11"
                                Foreground="{DynamicResource SystemControlForegroundBaseMediumBrush}"/>
                 </StackPanel>
 
-                <!-- 5. Распорка -->
-                <Panel Grid.Row="5"/>
+                <!-- 6. Распорка -->
+                <Panel Grid.Row="6"/>
 
-                <!-- 6. Действия и генерация отчёта (прижаты к низу) -->
-                <StackPanel Grid.Row="6" Spacing="6" Margin="0,10,0,0">
+                <!-- 7. Действия и генерация отчёта (прижаты к низу) -->
+                <StackPanel Grid.Row="7" Spacing="6" Margin="0,10,0,0">
                     <Separator Margin="0,0,0,4"/>
                     <Button Content="📄  Сформировать полный отчёт"
                             Command="{Binding GenerateReportCommand}"

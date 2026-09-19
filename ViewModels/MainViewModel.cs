@@ -14,6 +14,7 @@ public partial class MainViewModel : ViewModelBase
 {
     private readonly BenchmarkService _benchmarkService = new();
     private readonly ReportService _reportService = new();
+    private readonly DatabaseService _databaseService = new();
     private CancellationTokenSource? _cts;
 
     // Храним ScottPlot.Plot для экспорта в файл
@@ -61,16 +62,39 @@ public partial class MainViewModel : ViewModelBase
     [ObservableProperty]
     public partial string SizesText { get; set; } = string.Empty;
 
+    /// <summary>
+    /// Если true — игнорировать кэш и запустить бенчмарк заново, даже если данные уже есть в БД.
+    /// Если false (по умолчанию) — загружать результаты из кэша, если они там есть.
+    /// </summary>
+    [ObservableProperty]
+    public partial bool ForceRecalculate { get; set; } = false;
+
+    /// <summary>Текст о состоянии кэша — показывается под чекбоксом</summary>
+    [ObservableProperty]
+    public partial string CacheStatusText { get; set; } = string.Empty;
+
     /// <summary>Событие обновления данных графика для интерактивного AvaPlot</summary>
     public event EventHandler<BenchmarkResult>? BenchmarkPlotUpdated;
 
     partial void OnSelectedAlgorithmChanged(AbstractAlgorithm? value)
     {
-        if (value != null)
+        if (value == null) return;
+
+        var sizes = AlgorithmRegistry.GetRecommendedSizes(value);
+        SizesText = string.Join(", ", sizes);
+
+        // Проверяем кэш в фоне и обновляем подсказку
+        CacheStatusText = string.Empty;
+        _ = Task.Run(async () =>
         {
-            var sizes = AlgorithmRegistry.GetRecommendedSizes(value);
-            SizesText = string.Join(", ", sizes);
-        }
+            bool hasCached = await _databaseService.HasCachedDataAsync(value.Name, sizes);
+            Avalonia.Threading.Dispatcher.UIThread.Post(() =>
+            {
+                CacheStatusText = hasCached
+                    ? $"✅ Кэш: данные для {sizes.Length} точек уже сохранены в БД"
+                    : "ℹ️ Кэша нет — будет запущен полный бенчмарк";
+            });
+        });
     }
 
     private bool CanRunBenchmark() => SelectedAlgorithm != null && !IsRunning;
@@ -83,7 +107,7 @@ public partial class MainViewModel : ViewModelBase
         IsRunning = true;
         Progress = 0;
         Results.Clear();
-        StatusText = $"Запуск: {SelectedAlgorithm.Name}...";
+        CacheStatusText = string.Empty;
 
         _cts = CancellationTokenSource.CreateLinkedTokenSource(cancellationToken);
 
@@ -96,35 +120,62 @@ public partial class MainViewModel : ViewModelBase
                 return;
             }
 
-            var benchmarkResult = await _benchmarkService.RunBenchmarkAsync(
-                SelectedAlgorithm,
-                sizes,
-                progress =>
+            var algo = SelectedAlgorithm;
+            BenchmarkResult benchmarkResult;
+            bool loadedFromCache = false;
+
+            // ── Пробуем загрузить из кэша ───────────────────────────────────────
+            if (!ForceRecalculate && await _databaseService.HasCachedDataAsync(algo.Name, sizes))
+            {
+                StatusText = $"⏳ Загрузка из кэша: {algo.Name}...";
+
+                var cached = await _databaseService.LoadCachedResultAsync(
+                    algo.Name,
+                    algo.TheoreticalComplexityLabel,
+                    sizes,
+                    n => algo.TheoreticalComplexity(n));
+
+                if (cached != null)
                 {
-                    Avalonia.Threading.Dispatcher.UIThread.Post(() =>
-                    {
-                        Progress = (int)(progress * 100);
-                    });
-                },
-                _cts.Token
-            );
+                    benchmarkResult = cached;
+                    loadedFromCache = true;
+                    Progress = 100;
+                    CacheStatusText = $"✅ Загружено из кэша — {benchmarkResult.Results.Count} точек";
+                }
+                else
+                {
+                    // Кэш есть в БД, но данные не удалось восстановить — запускаем полный бенчмарк
+                    benchmarkResult = await RunFullBenchmarkAsync(algo, sizes, _cts.Token);
+                }
+            }
+            else
+            {
+                // ── Принудительный пересчёт или кэша нет ───────────────────────
+                if (ForceRecalculate)
+                {
+                    await _databaseService.DeleteRunsAsync(algo.Name);
+                    CacheStatusText = "🗑 Старый кэш удалён, запускаем заново...";
+                }
+
+                benchmarkResult = await RunFullBenchmarkAsync(algo, sizes, _cts.Token);
+            }
 
             CurrentBenchmark = benchmarkResult;
 
             foreach (var r in benchmarkResult.Results)
-            {
                 Results.Add(r);
-            }
 
             // Строим график
             RenderChart(benchmarkResult);
 
-            StatusText = $"Готово: {SelectedAlgorithm.Name} | " +
-                         $"Коэффициент c = {benchmarkResult.FittedCoefficient:E3}";
+            StatusText = loadedFromCache
+                ? $"Из кэша: {algo.Name} | Коэффициент c = {benchmarkResult.FittedCoefficient:E3}"
+                : $"Готово: {algo.Name} | Коэффициент c = {benchmarkResult.FittedCoefficient:E3}";
         }
         catch (OperationCanceledException)
         {
             StatusText = "Отменено";
+            CacheStatusText = string.Empty;
         }
         catch (NotImplementedException ex)
         {
@@ -139,6 +190,31 @@ public partial class MainViewModel : ViewModelBase
             IsRunning = false;
             Progress = 100;
         }
+    }
+
+    /// <summary>
+    /// Вспомогательный метод: запускает полный бенчмарк и обновляет статус кэша.
+    /// </summary>
+    private async Task<BenchmarkResult> RunFullBenchmarkAsync(
+        AbstractAlgorithm algo, int[] sizes, CancellationToken token)
+    {
+        StatusText = $"Запуск: {algo.Name}...";
+
+        var result = await _benchmarkService.RunBenchmarkAsync(
+            algo,
+            sizes,
+            progress =>
+            {
+                Avalonia.Threading.Dispatcher.UIThread.Post(() =>
+                {
+                    Progress = (int)(progress * 100);
+                });
+            },
+            token
+        );
+
+        CacheStatusText = $"💾 Результаты сохранены в БД — {result.Results.Count} точек";
+        return result;
     }
 
     private bool CanGenerateReport() => !IsRunning;

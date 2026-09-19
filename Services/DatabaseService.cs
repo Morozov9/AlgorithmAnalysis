@@ -1,4 +1,4 @@
-﻿using AlgorithmAnalysis.Data;
+using AlgorithmAnalysis.Data;
 using AlgorithmAnalysis.Data.Entities;
 using AlgorithmAnalysis.Models;
 using Microsoft.EntityFrameworkCore;
@@ -85,9 +85,12 @@ public class DatabaseService
 
         await using var db = new AppDbContext();
 
+        // Конвертируем в List<int> — EF Core надёжно транслирует List в SQL IN (...)
+        var sizesList = sizes.ToList();
+
         // Считаем сколько уникальных n есть в БД для этого алгоритма
         var cachedNs = await db.BenchmarkRuns
-                               .Where(r => r.AlgorithmName == algorithmName && sizes.Contains(r.N))
+                               .Where(r => r.AlgorithmName == algorithmName && sizesList.Contains(r.N))
                                .Select(r => r.N)
                                .Distinct()
                                .ToListAsync();
@@ -112,8 +115,11 @@ public class DatabaseService
     {
         await using var db = new AppDbContext();
 
+        // Конвертируем в List<int> — EF Core надёжно транслирует List в SQL IN (...)
+        var sizesList = sizes.ToList();
+
         var rows = await db.BenchmarkRuns
-                           .Where(r => r.AlgorithmName == algorithmName && sizes.Contains(r.N))
+                           .Where(r => r.AlgorithmName == algorithmName && sizesList.Contains(r.N))
                            .OrderBy(r => r.N)
                            .ThenBy(r => r.RunIndex)
                            .ToListAsync();
