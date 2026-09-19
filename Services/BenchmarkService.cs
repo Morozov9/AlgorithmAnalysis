@@ -41,7 +41,7 @@ public class BenchmarkService
         int maxN = sizes.Max();
         var random = new Random(RandomSeed);
 
-        return await Task.Run(() =>
+        var benchmarkResult = await Task.Run(() =>
         {
             // 1. Генерируем мастер-данные максимального размера (один раз)
             algorithm.GenerateMasterData(maxN, random);
@@ -98,6 +98,22 @@ public class BenchmarkService
 
             return result;
         }, cancellationToken);
+
+        // 5. Сохраняем результаты в БД (fire-and-forget, не блокирует UI)
+        _ = Task.Run(async () =>
+        {
+            try
+            {
+                var db = new DatabaseService();
+                await db.SaveResultAsync(benchmarkResult, RandomSeed);
+            }
+            catch
+            {
+                // Ошибка сохранения в БД не должна ломать работу приложения
+            }
+        }, CancellationToken.None);
+
+        return benchmarkResult;
     }
 
     /// <summary>

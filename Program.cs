@@ -35,6 +35,9 @@ sealed class Program
             return;
         }
 
+        // Инициализируем БД при старте (создаёт файл algorithmanalysis.db если его нет)
+        AlgorithmAnalysis.Services.DatabaseService.InitializeAsync().GetAwaiter().GetResult();
+
         BuildAvaloniaApp()
             .StartWithClassicDesktopLifetime(args);
     }
