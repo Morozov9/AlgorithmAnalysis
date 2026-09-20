@@ -24,4 +24,16 @@ public class BenchmarkResult
     /// Чем меньше — тем лучше теория описывает эксперимент.
     /// </summary>
     public double MSE { get; set; }
+
+    /// <summary>Показывает, измеряется ли число операций/шагов (true) или машинное время (false)</summary>
+    public bool IsStepBased { get; set; }
+
+    /// <summary>Единица измерения (шагов / мс)</summary>
+    public string UnitLabel => IsStepBased ? "шагов" : "мс";
+
+    /// <summary>Подпись оси Y на графике</summary>
+    public string YAxisTitle => IsStepBased ? "Число операций (шагов)" : "Время выполнения (мс)";
+
+    /// <summary>Подпись оси X на графике</summary>
+    public string XAxisTitle => IsStepBased ? "Показатель степени n" : "Размерность входных данных n";
 }

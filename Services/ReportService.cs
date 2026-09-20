@@ -1,6 +1,12 @@
+using System;
+using System.Collections.Generic;
 using System.Diagnostics;
 using System.IO;
+using System.Linq;
+using System.Net;
 using System.Text;
+using System.Threading;
+using System.Threading.Tasks;
 using AlgorithmAnalysis.Models;
 using AlgorithmAnalysis.Models.Algorithms;
 using ScottPlot;
@@ -10,7 +16,7 @@ namespace AlgorithmAnalysis.Services;
 /// <summary>
 /// Сервис автоматической генерации отчёта по лабораторной работе №1.
 /// Запускает серию экспериментов для всех алгоритмов, строит графики (включая сводный),
-/// и формирует готовые файлы отчёта (HTML для печати в PDF и Markdown).
+/// и формирует готовые файлы отчёта (интерактивный HTML для печати в PDF и Markdown).
 /// </summary>
 public class ReportService
 {
@@ -78,6 +84,13 @@ public class ReportService
     /// </summary>
     private static int[] GetReportSizes(AbstractAlgorithm algo)
     {
+        if (algo is PowerAlgorithm)
+        {
+            return algo.TheoreticalComplexityLabel == "O(n)"
+                ? AlgorithmRegistry.BuildLinearSizes(10, 2000, 100)
+                : AlgorithmRegistry.BuildSizes(2, 50000, 25);
+        }
+
         return algo.TheoreticalComplexityLabel switch
         {
             "O(n³)" => AlgorithmRegistry.BuildLinearSizes(10, 250, 15),
@@ -98,11 +111,13 @@ public class ReportService
         if (results.Count == 0) return;
 
         double[] xs = results.Select(r => (double)r.N).ToArray();
-        double[] ysExp = results.Select(r => r.AverageTimeMs).ToArray();
+        double[] ysExp = bench.IsStepBased
+            ? results.Select(r => (double)r.StepCount).ToArray()
+            : results.Select(r => r.AverageTimeMs).ToArray();
         double[] ysTheo = results.Select(r => r.TheoreticalTimeMs).ToArray();
 
         var exp = plt.Add.ScatterLine(xs, ysExp);
-        exp.LegendText = "Экспериментальные замеры (T среднее)";
+        exp.LegendText = bench.IsStepBased ? "Эксперимент (число шагов)" : "Экспериментальные замеры (T среднее)";
         exp.Color = Color.FromHex("#1976D2");
         exp.LineWidth = 2;
 
@@ -113,8 +128,8 @@ public class ReportService
         theo.LinePattern = LinePattern.Dashed;
 
         plt.Title($"{algo.Name}");
-        plt.XLabel("Размерность входных данных n");
-        plt.YLabel("Время исполнения (мс)");
+        plt.XLabel(bench.XAxisTitle);
+        plt.YLabel(bench.YAxisTitle);
         plt.ShowLegend(Alignment.UpperLeft);
 
         plt.SavePng(filePath, 1100, 550);
@@ -160,74 +175,277 @@ public class ReportService
         sb.AppendLine("<html lang=\"ru\">");
         sb.AppendLine("<head>");
         sb.AppendLine("  <meta charset=\"UTF-8\">");
-        sb.AppendLine("  <title>Отчёт по лабораторной работе №1</title>");
+        sb.AppendLine("  <title>Отчёт по лабораторной работе №1 — Анализ алгоритмов</title>");
         sb.AppendLine("  <style>");
-        sb.AppendLine("    body { font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif; line-height: 1.6; color: #24292e; max-width: 1100px; margin: 0 auto; padding: 25px; background: #fdfdfd; }");
-        sb.AppendLine("    h1, h2, h3 { color: #0d47a1; border-bottom: 1px solid #e0e0e0; padding-bottom: 6px; margin-top: 30px; }");
-        sb.AppendLine("    .header-box { background: #e3f2fd; padding: 20px 25px; border-radius: 8px; border-left: 6px solid #1976d2; margin-bottom: 30px; }");
-        sb.AppendLine("    .algo-card { background: #ffffff; border: 1px solid #e1e4e8; border-radius: 8px; padding: 20px; margin-bottom: 30px; box-shadow: 0 2px 5px rgba(0,0,0,0.04); }");
-        sb.AppendLine("    .chart-img { max-width: 100%; height: auto; border: 1px solid #ddd; border-radius: 6px; display: block; margin: 15px auto; }");
-        sb.AppendLine("    table { width: 100%; border-collapse: collapse; margin: 15px 0; font-size: 13px; }");
-        sb.AppendLine("    th, td { border: 1px solid #e0e0e0; padding: 8px 12px; text-align: right; }");
-        sb.AppendLine("    th { background: #f5f5f5; text-align: center; }");
-        sb.AppendLine("    td:first-child { text-align: center; }");
-        sb.AppendLine("    .badge { display: inline-block; padding: 3px 8px; font-weight: bold; border-radius: 4px; font-size: 12px; background: #e0f2f1; color: #00695c; }");
-        sb.AppendLine("    .print-btn { background: #1976d2; color: white; border: none; padding: 10px 20px; font-size: 15px; border-radius: 6px; cursor: pointer; float: right; }");
-        sb.AppendLine("    .print-btn:hover { background: #0d47a1; }");
-        sb.AppendLine("    @media print { .print-btn { display: none; } body { max-width: 100%; padding: 0; } .algo-card { page-break-inside: avoid; box-shadow: none; border: 1px solid #ccc; } }");
+        sb.AppendLine("    * { box-sizing: border-box; }");
+        sb.AppendLine("    body { font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Helvetica, Arial, sans-serif; line-height: 1.6; color: #1e293b; background: #f8fafc; margin: 0; padding: 0; }");
+        sb.AppendLine("    .app-layout { display: flex; min-height: 100vh; width: 100%; }");
+        sb.AppendLine("");
+        sb.AppendLine("    /* Сайдбар */");
+        sb.AppendLine("    .sidebar { width: 320px; min-width: 320px; background: #ffffff; color: #334155; padding: 24px 16px; flex-shrink: 0; border-right: 1px solid #e2e8f0; height: 100vh; position: sticky; top: 0; overflow-y: auto; }");
+        sb.AppendLine("    .sidebar-header { padding-bottom: 16px; margin-bottom: 16px; border-bottom: 1px solid #e2e8f0; }");
+        sb.AppendLine("    .sidebar-title { font-size: 16px; font-weight: 700; color: #0f172a; margin: 0 0 4px 0; }");
+        sb.AppendLine("    .sidebar-sub { font-size: 12px; color: #64748b; margin: 0; }");
+        sb.AppendLine("    .search-input { width: 100%; padding: 8px 12px; background: #f8fafc; border: 1px solid #cbd5e1; border-radius: 6px; color: #0f172a; font-size: 13px; margin-bottom: 14px; }");
+        sb.AppendLine("    .search-input:focus { outline: none; border-color: #2563eb; background: #ffffff; box-shadow: 0 0 0 2px rgba(37,99,235,0.1); }");
+        sb.AppendLine("    .nav-btn { display: flex; align-items: center; justify-content: space-between; width: 100%; padding: 8px 12px; background: transparent; border: none; border-radius: 6px; color: #334155; font-size: 13px; text-align: left; cursor: pointer; transition: all 0.15s ease; margin-bottom: 3px; }");
+        sb.AppendLine("    .nav-btn:hover { background: #f1f5f9; color: #0f172a; }");
+        sb.AppendLine("    .nav-btn.active { background: #eff6ff; color: #1d4ed8; font-weight: 600; }");
+        sb.AppendLine("    .nav-group-title { font-size: 11px; font-weight: 700; text-transform: uppercase; letter-spacing: 0.05em; color: #94a3b8; margin: 16px 8px 6px 8px; }");
+        sb.AppendLine("    .action-btn { font-weight: 500; margin-bottom: 6px; justify-content: center; font-size: 13px; }");
+        sb.AppendLine("    .print-btn { background: #2563eb; color: #ffffff; border: 1px solid #1d4ed8; }");
+        sb.AppendLine("    .print-btn:hover { background: #1d4ed8; }");
+        sb.AppendLine("    .view-all-btn { background: #ffffff; color: #334155; border: 1px solid #cbd5e1; }");
+        sb.AppendLine("    .view-all-btn:hover { background: #f1f5f9; color: #0f172a; }");
+        sb.AppendLine("");
+        sb.AppendLine("    /* Основная область контента */");
+        sb.AppendLine("    .main-content { flex: 1; min-width: 0; width: 100%; padding: 32px 48px; background: #f8fafc; }");
+        sb.AppendLine("    .header-box { background: #ffffff; padding: 24px 30px; border-radius: 8px; border: 1px solid #e2e8f0; border-left: 4px solid #2563eb; margin-bottom: 24px; box-shadow: 0 1px 3px rgba(0,0,0,0.03); }");
+        sb.AppendLine("    .header-box h2 { margin: 0 0 10px 0; color: #0f172a; font-size: 20px; font-weight: 700; }");
+        sb.AppendLine("    .header-box p { margin: 4px 0; font-size: 14px; color: #475569; }");
+        sb.AppendLine("    .algo-card { background: #ffffff; border: 1px solid #e2e8f0; border-radius: 8px; padding: 26px 30px; margin-bottom: 24px; box-shadow: 0 1px 3px rgba(0,0,0,0.03); width: 100%; }");
+        sb.AppendLine("    .algo-card h3 { margin: 0 0 12px 0; color: #0f172a; font-size: 18px; font-weight: 600; display: flex; align-items: center; justify-content: space-between; }");
+        sb.AppendLine("    .meta-line { font-size: 13px; color: #64748b; margin-bottom: 16px; padding-bottom: 10px; border-bottom: 1px solid #f1f5f9; }");
+        sb.AppendLine("    .meta-line code { background: #f1f5f9; border: 1px solid #e2e8f0; padding: 2px 6px; border-radius: 4px; color: #0f172a; font-weight: 600; font-size: 12px; }");
+        sb.AppendLine("    .chart-img { max-width: 100%; height: auto; border: 1px solid #e2e8f0; border-radius: 8px; display: block; margin: 20px auto; box-shadow: 0 1px 4px rgba(0,0,0,0.04); }");
+        sb.AppendLine("    table { width: 100%; border-collapse: collapse; margin: 18px 0; font-size: 13px; }");
+        sb.AppendLine("    th, td { border: 1px solid #e2e8f0; padding: 9px 12px; text-align: right; }");
+        sb.AppendLine("    th { background: #f8fafc; color: #334155; font-weight: 600; text-align: center; }");
+        sb.AppendLine("    td:first-child { text-align: left; font-weight: 500; }");
+        sb.AppendLine("    tr:hover td { background: #f8fafc; }");
+        sb.AppendLine("    .badge { display: inline-block; padding: 3px 8px; font-weight: 600; border-radius: 4px; font-size: 12px; background: #f1f5f9; color: #334155; border: 1px solid #e2e8f0; }");
+        sb.AppendLine("    .badge-sm { font-size: 11px; padding: 2px 6px; }");
+        sb.AppendLine("    .badge-step { background: #eff6ff; color: #1d4ed8; border: 1px solid #bfdbfe; }");
+        sb.AppendLine("    .tip-box { background: #f8fafc; border: 1px solid #cbd5e1; border-left: 4px solid #2563eb; color: #1e293b; padding: 12px 16px; border-radius: 6px; font-size: 13px; margin: 16px 0; }");
+        sb.AppendLine("    .tab-pane { display: none; }");
+        sb.AppendLine("    .tab-pane.active { display: block; animation: fadeIn 0.2s ease-in-out; }");
+        sb.AppendLine("    @keyframes fadeIn { from { opacity: 0; transform: translateY(4px); } to { opacity: 1; transform: translateY(0); } }");
+        sb.AppendLine("");
+        sb.AppendLine("    /* Стили для печати в PDF */");
+        sb.AppendLine("    @media print {");
+        sb.AppendLine("      .sidebar, .action-btn, .search-input { display: none !important; }");
+        sb.AppendLine("      .app-layout { display: block !important; }");
+        sb.AppendLine("      .main-content { width: 100% !important; max-width: 100% !important; padding: 0 !important; background: #ffffff !important; }");
+        sb.AppendLine("      .tab-pane { display: block !important; }");
+        sb.AppendLine("      .algo-card { break-inside: avoid !important; page-break-inside: avoid !important; box-shadow: none !important; border: 1px solid #cbd5e1 !important; margin-bottom: 25px !important; }");
+        sb.AppendLine("      .summary-section { break-after: page !important; page-break-after: always !important; }");
+        sb.AppendLine("      body { background: #ffffff !important; color: #000000 !important; }");
+        sb.AppendLine("    }");
+        sb.AppendLine("");
+        sb.AppendLine("    @media (max-width: 900px) {");
+        sb.AppendLine("      .app-layout { flex-direction: column; }");
+        sb.AppendLine("      .sidebar { width: 100%; height: auto; position: static; }");
+        sb.AppendLine("      .main-content { padding: 16px; }");
+        sb.AppendLine("    }");
         sb.AppendLine("  </style>");
         sb.AppendLine("</head>");
         sb.AppendLine("<body>");
 
-        sb.AppendLine("  <button class=\"print-btn\" onclick=\"window.print()\">🖨 Печать в PDF</button>");
-        sb.AppendLine("  <div class=\"header-box\">");
-        sb.AppendLine("    <h2>Лабораторная работа №1</h2>");
-        sb.AppendLine("    <p><b>Тема:</b> Эмпирический анализ временной сложности алгоритмов</p>");
-        sb.AppendLine($"    <p><b>Дата формирования:</b> {DateTime.Now:dd.MM.yyyy HH:mm}</p>");
-        sb.AppendLine("    <p><b>Цель:</b> Практическое исследование зависимости времени работы алгоритмов от объёма входных данных, сопоставление экспериментальных кривых с теоретическими классами сложности Big-O, аппроксимация методом наименьших квадратов, оценка MSE.</p>");
-        sb.AppendLine("  </div>");
+        sb.AppendLine("  <div class=\"app-layout\">");
 
-        // Сводный раздел сортировок
-        sb.AppendLine("  <h2>Сравнительный анализ алгоритмов сортировки</h2>");
-        sb.AppendLine("  <div class=\"algo-card\">");
-        sb.AppendLine($"    <img class=\"chart-img\" src=\"{combinedSortChartPath}\" alt=\"Сравнение сортировок\">");
-        sb.AppendLine("    <p><b>Анализ:</b> Из графика видно преимущество алгоритмов <code>O(n log n)</code> (QuickSort, Timsort, MergeSort) над квадратичными <code>O(n²)</code> (BubbleSort, InsertionSort). При росте n до 2000 элементов время квадратичных сортировок растёт круто по параболе.</p>");
-        sb.AppendLine("  </div>");
+        // Генерация сайдбара
+        sb.AppendLine("    <div class=\"sidebar\">");
+        sb.AppendLine("      <div class=\"sidebar-header\">");
+        sb.AppendLine("        <div class=\"sidebar-title\">Лабораторная работа №1</div>");
+        sb.AppendLine("        <div class=\"sidebar-sub\">Эмпирический анализ алгоритмов</div>");
+        sb.AppendLine("      </div>");
 
-        // Результаты по алгоритмам
-        sb.AppendLine("  <h2>Подробные результаты по алгоритмам</h2>");
+        sb.AppendLine("      <input type=\"text\" id=\"algoSearch\" class=\"search-input\" placeholder=\"Поиск алгоритма...\" oninput=\"filterAlgos()\">");
 
-        foreach (var (algo, bench, chartPath) in results)
+        sb.AppendLine("      <button class=\"nav-btn action-btn active\" id=\"btn-summary\" onclick=\"selectTab('summary')\">");
+        sb.AppendLine("        <span>Сводный обзор</span>");
+        sb.AppendLine("      </button>");
+
+        sb.AppendLine("      <button class=\"nav-btn action-btn print-btn\" onclick=\"showAllAndPrint()\">");
+        sb.AppendLine("        <span>Печать в PDF</span>");
+        sb.AppendLine("      </button>");
+
+        sb.AppendLine("      <button class=\"nav-btn action-btn view-all-btn\" id=\"btn-show-all\" onclick=\"toggleShowAll()\">");
+        sb.AppendLine("        <span>Показать все</span>");
+        sb.AppendLine("      </button>");
+
+        // Группировка алгоритмов в сайдбаре
+        var groups = results.GroupBy(r => r.Algo.Group).ToList();
+
+        for (int gIdx = 0; gIdx < groups.Count; gIdx++)
         {
-            sb.AppendLine("  <div class=\"algo-card\">");
-            sb.AppendLine($"    <h3>{algo.Name} <span class=\"badge\">{algo.TheoreticalComplexityLabel}</span></h3>");
-            sb.AppendLine($"    <p><b>Группа:</b> {algo.Group} | <b>c:</b> <code>{bench.FittedCoefficient:E3}</code> | <b>MSE:</b> <code>{bench.MSE:E3}</code></p>");
-            sb.AppendLine($"    <img class=\"chart-img\" src=\"{chartPath}\" alt=\"{algo.Name}\">");
+            var grp = groups[gIdx];
+            sb.AppendLine($"      <div class=\"nav-group-title\">{WebUtility.HtmlEncode(grp.Key)}</div>");
 
-            sb.AppendLine("    <table>");
-            sb.AppendLine("      <thead><tr><th>n</th><th>T эксп. (мс)</th><th>T теор. (мс)</th><th>Все 5 замеров (мс)</th></tr></thead>");
-            sb.AppendLine("      <tbody>");
-
-            foreach (var r in bench.Results)
+            foreach (var item in grp)
             {
-                string runsStr = string.Join(", ", r.AllRunsMs.Select(x => x.ToString("F4")));
-                sb.AppendLine($"        <tr><td>{r.N}</td><td>{r.AverageTimeMs:F4}</td><td>{r.TheoreticalTimeMs:F4}</td><td style=\"font-size:11px;color:#555;\">{runsStr}</td></tr>");
-            }
+                int itemIndex = results.IndexOf(item);
+                string encodedName = WebUtility.HtmlEncode(item.Algo.Name);
+                string encodedLabel = WebUtility.HtmlEncode(item.Algo.TheoreticalComplexityLabel);
+                string badgeClass = item.Algo.MeasureSteps ? "badge badge-sm badge-step" : "badge badge-sm";
 
-            sb.AppendLine("      </tbody>");
-            sb.AppendLine("    </table>");
-            sb.AppendLine("  </div>");
+                sb.AppendLine($"      <button class=\"nav-btn algo-btn\" id=\"btn-algo-{itemIndex}\" onclick=\"selectTab('algo-{itemIndex}')\">");
+                sb.AppendLine($"        <span style=\"text-overflow:ellipsis; overflow:hidden; white-space:nowrap; max-width:200px;\">{encodedName}</span>");
+                sb.AppendLine($"        <span class=\"{badgeClass}\">{encodedLabel}</span>");
+                sb.AppendLine("      </button>");
+            }
         }
 
-        // Выводы
-        sb.AppendLine("  <h2>Выводы</h2>");
-        sb.AppendLine("  <div class=\"algo-card\">");
-        sb.AppendLine("    <ol>");
-        sb.AppendLine("      <li><b>Соответствие теории и практики:</b> Экспериментальные замеры подтверждают теоретические классы сложности.</li>");
-        sb.AppendLine("      <li><b>MSE:</b> Чем меньше MSE, тем лучше теоретическая модель описывает эксперимент. Для чистых функций MSE минимальна.</li>");
-        sb.AppendLine("      <li><b>Факторы погрешности:</b> Колебания эмпирической кривой объясняются системными процессами ОС и кэшированием процессора.</li>");
-        sb.AppendLine("    </ol>");
-        sb.AppendLine("  </div>");
+        sb.AppendLine("    </div>"); // Конец sidebar
+
+        // Главная область контента
+        sb.AppendLine("    <div class=\"main-content\">");
+
+        sb.AppendLine("      <div class=\"header-box\">");
+        sb.AppendLine("        <h2>Лабораторная работа №1: Эмпирический анализ сложности алгоритмов</h2>");
+        sb.AppendLine("        <p><b>Тема:</b> Эмпирический анализ временной сложности алгоритмов, Big-O аппроксимация, подсчёт шагов</p>");
+        sb.AppendLine($"        <p><b>Дата формирования:</b> {DateTime.Now:dd.MM.yyyy HH:mm}</p>");
+        sb.AppendLine("        <p><b>Цель:</b> Практическое исследование зависимости времени работы и количества элементарных операций от объёма входных данных, сопоставление экспериментальных кривых с теоретическими функциями сложности, аппроксимация МНК и оценка MSE.</p>");
+        sb.AppendLine("      </div>");
+
+        // 1. Вкладка Сводного обзора
+        sb.AppendLine("      <div id=\"tab-summary\" class=\"tab-pane active summary-section\">");
+
+        sb.AppendLine("        <div class=\"algo-card\">");
+        sb.AppendLine("          <h3>Сравнительный анализ алгоритмов сортировки</h3>");
+        sb.AppendLine($"          <img class=\"chart-img\" src=\"{combinedSortChartPath}\" alt=\"Сравнение сортировок\">");
+        sb.AppendLine("          <p><b>Анализ сортировок:</b> Из графиков отчётливо видно преимущество логарифмических сортировок <code>O(n log n)</code> (QuickSort, Timsort, MergeSort) над квадратичными <code>O(n²)</code> (BubbleSort, InsertionSort). При росте размера массива n до 2000 элементов квадратичные сортировки демонстрируют крутой параболический рост времени исполнения.</p>");
+        sb.AppendLine("        </div>");
+
+        sb.AppendLine("        <div class=\"algo-card\">");
+        sb.AppendLine("          <h3>Сводная таблица результатов всех алгоритмов</h3>");
+        sb.AppendLine("          <table>");
+        sb.AppendLine("            <thead>");
+        sb.AppendLine("              <tr><th>Алгоритм</th><th>Группа</th><th>Класс сложности</th><th>Коэффициент c</th><th>MSE</th><th>Тип замера</th></tr>");
+        sb.AppendLine("            </thead>");
+        sb.AppendLine("            <tbody>");
+
+        foreach (var (algo, bench, _) in results)
+        {
+            string encodedName = WebUtility.HtmlEncode(algo.Name);
+            string encodedGroup = WebUtility.HtmlEncode(algo.Group);
+            string encodedClass = WebUtility.HtmlEncode(algo.TheoreticalComplexityLabel);
+            string typeLabel = bench.IsStepBased ? "Число шагов" : "Время (мс)";
+            string badgeClass = bench.IsStepBased ? "badge badge-step" : "badge";
+
+            sb.AppendLine($"              <tr>");
+            sb.AppendLine($"                <td style=\"text-align:left;\"><b>{encodedName}</b></td>");
+            sb.AppendLine($"                <td style=\"text-align:center;\">{encodedGroup}</td>");
+            sb.AppendLine($"                <td style=\"text-align:center;\"><span class=\"{badgeClass}\">{encodedClass}</span></td>");
+            sb.AppendLine($"                <td><code>{bench.FittedCoefficient:E3}</code></td>");
+            sb.AppendLine($"                <td><code>{bench.MSE:E3}</code></td>");
+            sb.AppendLine($"                <td style=\"text-align:center;\">{typeLabel}</td>");
+            sb.AppendLine($"              </tr>");
+        }
+
+        sb.AppendLine("            </tbody>");
+        sb.AppendLine("          </table>");
+        sb.AppendLine("        </div>");
+
+        sb.AppendLine("        <div class=\"algo-card\">");
+        sb.AppendLine("          <h3>Теоретические выводы</h3>");
+        sb.AppendLine("          <ol>");
+        sb.AppendLine("            <li><b>Соответствие теории и практики:</b> Экспериментальные кривые подтверждают теоретические оценки Big-O для всех групп алгоритмов.</li>");
+        sb.AppendLine("            <li><b>Метрика MSE:</b> Минимальная среднеквадратичная ошибка подтверждает адекватность выбранной теоретической модели. Для детерминированных алгоритмов шагов MSE практически равна нулю.</li>");
+        sb.AppendLine("            <li><b>Возведение в степень:</b> Подсчёт точного числа шагов (умножений) наглядно демонстрирует переход от линейного $O(n)$ к логарифмическому $O(\\log n)$ числу операций в бинарных алгоритмах.</li>");
+        sb.AppendLine("          </ol>");
+        sb.AppendLine("        </div>");
+
+        sb.AppendLine("      </div>"); // Конец tab-summary
+
+        // 2. Вкладки для каждого отдельного алгоритма
+        for (int i = 0; i < results.Count; i++)
+        {
+            var (algo, bench, chartPath) = results[i];
+            string encodedName = WebUtility.HtmlEncode(algo.Name);
+            string encodedGroup = WebUtility.HtmlEncode(algo.Group);
+            string encodedClass = WebUtility.HtmlEncode(algo.TheoreticalComplexityLabel);
+            string badgeClass = bench.IsStepBased ? "badge badge-step" : "badge";
+            string unitName = bench.UnitLabel;
+
+            sb.AppendLine($"      <div id=\"tab-algo-{i}\" class=\"tab-pane\">");
+            sb.AppendLine("        <div class=\"algo-card\">");
+            sb.AppendLine($"          <h3>{encodedName} <span class=\"{badgeClass}\">{encodedClass}</span></h3>");
+            sb.AppendLine($"          <div class=\"meta-line\">Группа: <b>{encodedGroup}</b> | Коэффициент c: <code>{bench.FittedCoefficient:E3}</code> | MSE: <code>{bench.MSE:E3}</code> | Измерение: <b>{unitName}</b></div>");
+
+            if (algo.Group == "Матрицы")
+            {
+                sb.AppendLine("          <div class=\"tip-box\"><b>3D-анализ матриц:</b> В программе доступен запуск 3D-эксперимента матричного умножения A(n×m) × B(m×k) с интерактивной 3D-поверхностью на Plotly.js!</div>");
+            }
+
+            sb.AppendLine($"          <img class=\"chart-img\" src=\"{chartPath}\" alt=\"{encodedName}\">");
+
+            sb.AppendLine("          <table>");
+            if (bench.IsStepBased)
+            {
+                sb.AppendLine("            <thead><tr><th>n</th><th>Шаги эксп.</th><th>Шаги теор.</th><th>Время вып. (мс)</th></tr></thead>");
+                sb.AppendLine("            <tbody>");
+                foreach (var r in bench.Results)
+                {
+                    sb.AppendLine($"              <tr><td>{r.N}</td><td><b>{r.StepCount}</b></td><td>{r.TheoreticalTimeMs:F1}</td><td style=\"font-size:12px;color:#64748b;\">{r.AverageTimeMs:F4}</td></tr>");
+                }
+            }
+            else
+            {
+                sb.AppendLine("            <thead><tr><th>n</th><th>T эксп. (мс)</th><th>T теор. (мс)</th><th>Все 5 замеров (мс)</th></tr></thead>");
+                sb.AppendLine("            <tbody>");
+                foreach (var r in bench.Results)
+                {
+                    string runsStr = string.Join(", ", r.AllRunsMs.Select(x => x.ToString("F4")));
+                    sb.AppendLine($"              <tr><td>{r.N}</td><td><b>{r.AverageTimeMs:F4}</b></td><td>{r.TheoreticalTimeMs:F4}</td><td style=\"font-size:11px;color:#64748b;\">{runsStr}</td></tr>");
+                }
+            }
+            sb.AppendLine("            </tbody>");
+            sb.AppendLine("          </table>");
+
+            sb.AppendLine("        </div>");
+            sb.AppendLine("      </div>");
+        }
+
+        sb.AppendLine("    </div>"); // Конец main-content
+        sb.AppendLine("  </div>"); // Конец app-layout
+
+        // Скрипт переключения вкладок (Vanilla JS, 100% офлайн)
+        sb.AppendLine("  <script>");
+        sb.AppendLine("    let showAllMode = false;");
+        sb.AppendLine("");
+        sb.AppendLine("    function selectTab(tabId) {");
+        sb.AppendLine("      showAllMode = false;");
+        sb.AppendLine("      const btnShowAll = document.getElementById('btn-show-all');");
+        sb.AppendLine("      if (btnShowAll) btnShowAll.innerHTML = '<span>Показать все</span>';");
+        sb.AppendLine("");
+        sb.AppendLine("      document.querySelectorAll('.tab-pane').forEach(el => el.classList.remove('active'));");
+        sb.AppendLine("      document.querySelectorAll('.nav-btn').forEach(el => el.classList.remove('active'));");
+        sb.AppendLine("");
+        sb.AppendLine("      const activeTab = document.getElementById('tab-' + tabId);");
+        sb.AppendLine("      if (activeTab) activeTab.classList.add('active');");
+        sb.AppendLine("");
+        sb.AppendLine("      const activeBtn = document.getElementById('btn-' + tabId);");
+        sb.AppendLine("      if (activeBtn) activeBtn.classList.add('active');");
+        sb.AppendLine("");
+        sb.AppendLine("      window.scrollTo({ top: 0, behavior: 'smooth' });");
+        sb.AppendLine("    }");
+        sb.AppendLine("");
+        sb.AppendLine("    function toggleShowAll() {");
+        sb.AppendLine("      showAllMode = !showAllMode;");
+        sb.AppendLine("      const btn = document.getElementById('btn-show-all');");
+        sb.AppendLine("      if (showAllMode) {");
+        sb.AppendLine("        document.querySelectorAll('.tab-pane').forEach(el => el.classList.add('active'));");
+        sb.AppendLine("        document.querySelectorAll('.nav-btn').forEach(el => el.classList.remove('active'));");
+        sb.AppendLine("        if (btn) { btn.classList.add('active'); btn.innerHTML = '<span>Скрыть остальные</span>'; }");
+        sb.AppendLine("      } else {");
+        sb.AppendLine("        selectTab('summary');");
+        sb.AppendLine("      }");
+        sb.AppendLine("    }");
+        sb.AppendLine("");
+        sb.AppendLine("    function showAllAndPrint() {");
+        sb.AppendLine("      document.querySelectorAll('.tab-pane').forEach(el => el.classList.add('active'));");
+        sb.AppendLine("      setTimeout(() => { window.print(); }, 150);");
+        sb.AppendLine("    }");
+        sb.AppendLine("");
+        sb.AppendLine("    function filterAlgos() {");
+        sb.AppendLine("      const q = document.getElementById('algoSearch').value.toLowerCase().trim();");
+        sb.AppendLine("      document.querySelectorAll('.algo-btn').forEach(btn => {");
+        sb.AppendLine("        const text = btn.textContent.toLowerCase();");
+        sb.AppendLine("        btn.style.display = text.includes(q) ? 'flex' : 'none';");
+        sb.AppendLine("      });");
+        sb.AppendLine("    }");
+        sb.AppendLine("  </script>");
 
         sb.AppendLine("</body>");
         sb.AppendLine("</html>");
@@ -255,30 +473,43 @@ public class ReportService
             sb.AppendLine($"### {algo.Name} ({algo.TheoreticalComplexityLabel})\n");
             sb.AppendLine($"- **Группа:** {algo.Group}");
             sb.AppendLine($"- **Коэффициент c:** `{bench.FittedCoefficient:E3}`");
-            sb.AppendLine($"- **MSE:** `{bench.MSE:E3}`\n");
+            sb.AppendLine($"- **MSE:** `{bench.MSE:E3}`");
+            sb.AppendLine($"- **Единица измерения:** {bench.UnitLabel}\n");
             sb.AppendLine($"![{algo.Name}]({chartPath})\n");
 
-            sb.AppendLine("| n | T эксп. (мс) | T теор. (мс) |");
-            sb.AppendLine("|---|---|---|");
-            foreach (var r in bench.Results)
+            if (bench.IsStepBased)
             {
-                sb.AppendLine($"| {r.N} | {r.AverageTimeMs:F4} | {r.TheoreticalTimeMs:F4} |");
+                sb.AppendLine("| n | Шаги эксп. | Шаги теор. | Время (мс) |");
+                sb.AppendLine("|---|---|---|---|");
+                foreach (var r in bench.Results)
+                {
+                    sb.AppendLine($"| {r.N} | {r.StepCount} | {r.TheoreticalTimeMs:F1} | {r.AverageTimeMs:F4} |");
+                }
+            }
+            else
+            {
+                sb.AppendLine("| n | T эксп. (мс) | T теор. (мс) |");
+                sb.AppendLine("|---|---|---|");
+                foreach (var r in bench.Results)
+                {
+                    sb.AppendLine($"| {r.N} | {r.AverageTimeMs:F4} | {r.TheoreticalTimeMs:F4} |");
+                }
             }
             sb.AppendLine();
         }
 
         sb.AppendLine("## 4. Сводная таблица алгоритмов\n");
-        sb.AppendLine("| Алгоритм | Класс | c | MSE |");
-        sb.AppendLine("|---|---|---|---|");
+        sb.AppendLine("| Алгоритм | Класс | c | MSE | Измерение |");
+        sb.AppendLine("|---|---|---|---|---|");
         foreach (var (algo, bench, _) in results)
         {
-            sb.AppendLine($"| {algo.Name} | {algo.TheoreticalComplexityLabel} | `{bench.FittedCoefficient:E2}` | `{bench.MSE:E2}` |");
+            sb.AppendLine($"| {algo.Name} | {algo.TheoreticalComplexityLabel} | `{bench.FittedCoefficient:E2}` | `{bench.MSE:E2}` | {bench.UnitLabel} |");
         }
         sb.AppendLine();
 
         sb.AppendLine("## 5. Выводы\n");
-        sb.AppendLine("1. Экспериментальные данные подтверждают теоретические оценки.");
-        sb.AppendLine("2. MSE показывает качество аппроксимации: чем меньше, тем точнее теория.");
+        sb.AppendLine("1. Экспериментальные данные подтверждают теоретические оценки сложности.");
+        sb.AppendLine("2. MSE показывает качество аппроксимации: чем меньше, тем точнее теория описывает процесс.");
         sb.AppendLine("3. Преимущество эффективных алгоритмов: Горнер O(n) над наивным O(n²), QuickSort O(n log n) над BubbleSort O(n²), бинарное возведение в степень O(log n) над наивным O(n).");
 
         return sb.ToString();

@@ -11,7 +11,7 @@ public class PowerFast : PowerAlgorithm
     public override string Name => "Возведение в степень: быстрый (QuickPow)";
     public override string TheoreticalComplexityLabel => "O(log n)";
 
-    public override double TheoreticalComplexity(int n) => Math.Log2(n > 0 ? n : 1);
+    public override double TheoreticalComplexity(int n) => Math.Log2(n + 1);
 
     public override void Execute()
     {

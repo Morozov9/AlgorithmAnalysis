@@ -10,7 +10,7 @@ public class PowerClassic : PowerAlgorithm
     public override string Name => "Возведение в степень: классический быстрый (QuickPow1)";
     public override string TheoreticalComplexityLabel => "O(log n)";
 
-    public override double TheoreticalComplexity(int n) => Math.Log2(n > 0 ? n : 1);
+    public override double TheoreticalComplexity(int n) => Math.Log2(n + 1);
 
     public override void Execute()
     {

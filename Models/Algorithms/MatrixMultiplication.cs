@@ -14,16 +14,18 @@ public class MatrixMultiplication : MatrixAlgorithm
 
     public override void Execute()
     {
-        int n = _workingA.GetLength(0);
+        int n = CurrentN;
+        int m = CurrentM;
+        int k = CurrentK;
 
         for (int i = 0; i < n; i++)
         {
-            for (int j = 0; j < n; j++)
+            for (int j = 0; j < k; j++)
             {
                 double sum = 0;
-                for (int k = 0; k < n; k++)
+                for (int p = 0; p < m; p++)
                 {
-                    sum += _workingA[i, k] * _workingB[k, j];
+                    sum += _masterA[i, p] * _masterB[p, j];
                 }
                 _result[i, j] = sum;
             }

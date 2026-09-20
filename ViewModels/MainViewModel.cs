@@ -16,6 +16,7 @@ public partial class MainViewModel : ViewModelBase
     private readonly BenchmarkService _benchmarkService = new();
     private readonly ReportService _reportService = new();
     private readonly DatabaseService _databaseService = new();
+    private readonly Matrix3DReportService _matrix3DReportService = new();
     private CancellationTokenSource? _cts;
 
     private ScottPlot.Plot? _currentPlot;
@@ -46,6 +47,11 @@ public partial class MainViewModel : ViewModelBase
     [NotifyCanExecuteChangedFor(nameof(RunBenchmarkCommand))]
     public partial SelectableAlgorithm? SelectedAlgorithm { get; set; }
 
+    /// <summary>Выбран ли матричный алгоритм (для показа кнопки 3D-анализа)</summary>
+    [ObservableProperty]
+    [NotifyCanExecuteChangedFor(nameof(RunMatrix3DAnalysisCommand))]
+    public partial bool IsMatrixAlgorithmSelected { get; set; }
+
     /// <summary>Результаты экспериментов (для DataGrid)</summary>
     public ObservableCollection<ExperimentResult> Results { get; } = [];
 
@@ -73,6 +79,7 @@ public partial class MainViewModel : ViewModelBase
     [ObservableProperty]
     [NotifyCanExecuteChangedFor(nameof(RunBenchmarkCommand))]
     [NotifyCanExecuteChangedFor(nameof(RunAllSelectedCommand))]
+    [NotifyCanExecuteChangedFor(nameof(RunMatrix3DAnalysisCommand))]
     [NotifyCanExecuteChangedFor(nameof(GenerateReportCommand))]
     [NotifyCanExecuteChangedFor(nameof(CancelCommand))]
     public partial bool IsRunning { get; set; }
@@ -94,6 +101,8 @@ public partial class MainViewModel : ViewModelBase
 
     partial void OnSelectedAlgorithmChanged(SelectableAlgorithm? value)
     {
+        IsMatrixAlgorithmSelected = value?.Algorithm is AlgorithmAnalysis.Models.Algorithms.MatrixAlgorithm;
+
         if (value == null) return;
 
         var algo = value.Algorithm;
@@ -105,19 +114,19 @@ public partial class MainViewModel : ViewModelBase
         {
             try
             {
-                bool hasCached = await _databaseService.HasCachedDataAsync(algo.Name, sizes);
+                bool hasCached = await _databaseService.HasCachedDataAsync(algo.Name, sizes, algo.MeasureSteps);
                 Avalonia.Threading.Dispatcher.UIThread.Post(() =>
                 {
                     CacheStatusText = hasCached
-                        ? $"✅ Кэш: данные для {sizes.Length} точек уже сохранены в БД"
-                        : "ℹ️ Кэша нет — будет запущен полный бенчмарк";
+                        ? $"Кэш: данные для {sizes.Length} точек уже сохранены в БД"
+                        : "Кэша нет, будет запущен полный бенчмарк";
                 });
             }
             catch (Exception ex)
             {
                 Avalonia.Threading.Dispatcher.UIThread.Post(() =>
                 {
-                    CacheStatusText = $"⚠ БД недоступна: {ex.Message}";
+                    CacheStatusText = $"БД недоступна: {ex.Message}";
                 });
             }
         });
@@ -150,29 +159,30 @@ public partial class MainViewModel : ViewModelBase
             var sizes = ParseSizes(SizesText);
             if (sizes.Length == 0)
             {
-                StatusText = "⚠ Укажите размеры данных (через запятую или в виде 1..2000:50)";
+                StatusText = "Укажите размеры данных (через запятую или в виде 1..2000:50)";
                 return;
             }
 
             BenchmarkResult benchmarkResult;
             bool loadedFromCache = false;
 
-            if (!ForceRecalculate && await _databaseService.HasCachedDataAsync(algo.Name, sizes))
+            if (!ForceRecalculate && await _databaseService.HasCachedDataAsync(algo.Name, sizes, algo.MeasureSteps))
             {
-                StatusText = $"⏳ Загрузка из кэша: {algo.Name}...";
+                StatusText = $"Загрузка из кэша: {algo.Name}...";
 
                 var cached = await _databaseService.LoadCachedResultAsync(
                     algo.Name,
                     algo.TheoreticalComplexityLabel,
                     sizes,
-                    n => algo.TheoreticalComplexity(n));
+                    n => algo.TheoreticalComplexity(n),
+                    algo.MeasureSteps);
 
                 if (cached != null)
                 {
                     benchmarkResult = cached;
                     loadedFromCache = true;
                     Progress = 100;
-                    CacheStatusText = $"✅ Загружено из кэша — {benchmarkResult.Results.Count} точек";
+                    CacheStatusText = $"Загружено из кэша — {benchmarkResult.Results.Count} точек";
                 }
                 else
                 {
@@ -184,7 +194,7 @@ public partial class MainViewModel : ViewModelBase
                 if (ForceRecalculate)
                 {
                     await _databaseService.DeleteRunsAsync(algo.Name);
-                    CacheStatusText = "🗑 Старый кэш удалён, запускаем заново...";
+                    CacheStatusText = "Старый кэш удален, запускаем заново...";
                 }
 
                 benchmarkResult = await RunFullBenchmarkAsync(algo, sizes, _cts.Token);
@@ -208,7 +218,7 @@ public partial class MainViewModel : ViewModelBase
         }
         catch (NotImplementedException ex)
         {
-            StatusText = $"⚠ Алгоритм не реализован: {ex.Message}";
+            StatusText = $"Алгоритм не реализован: {ex.Message}";
         }
         catch (Exception ex)
         {
@@ -233,7 +243,7 @@ public partial class MainViewModel : ViewModelBase
         var selected = Algorithms.Where(a => a.IsSelected).Select(a => a.Algorithm).ToList();
         if (selected.Count == 0)
         {
-            StatusText = "⚠ Не выбрано ни одного алгоритма";
+            StatusText = "Не выбрано ни одного алгоритма";
             return;
         }
 
@@ -251,7 +261,7 @@ public partial class MainViewModel : ViewModelBase
                 if (_cts.Token.IsCancellationRequested) break;
 
                 done++;
-                StatusText = $"⏳ [{done}/{total}] {algo.Name}...";
+                StatusText = $"[{done}/{total}] {algo.Name}...";
 
                 // Синхронизируем SelectedAlgorithm с текущим алгоритмом в очереди
                 var wrapper = Algorithms.FirstOrDefault(a => a.Algorithm == algo);
@@ -261,7 +271,7 @@ public partial class MainViewModel : ViewModelBase
                 var sizes = ParseSizes(SizesText);
                 if (sizes.Length == 0)
                 {
-                    StatusText = $"⚠ [{done}/{total}] Некорректные размеры для {algo.Name}";
+                    StatusText = $"[{done}/{total}] Некорректные размеры для {algo.Name}";
                     continue;
                 }
 
@@ -280,15 +290,15 @@ public partial class MainViewModel : ViewModelBase
                     foreach (var r in result.Results) Results.Add(r);
                     RenderChart(result);
 
-                    StatusText = $"✅ [{done}/{total}] {algo.Name} | c={result.FittedCoefficient:E2} | MSE={result.MSE:E2}";
+                    StatusText = $"[{done}/{total}] {algo.Name} | c={result.FittedCoefficient:E2} | MSE={result.MSE:E2}";
                 }
                 catch (Exception ex)
                 {
-                    StatusText = $"❌ [{done}/{total}] {algo.Name}: {ex.Message}";
+                    StatusText = $"Ошибка [{done}/{total}] {algo.Name}: {ex.Message}";
                 }
             }
 
-            StatusText = $"🎉 Готово! Обработано {done}/{total} алгоритмов";
+            StatusText = $"Готово! Обработано {done}/{total} алгоритмов";
             Progress = 100;
         }
         catch (OperationCanceledException)
@@ -319,8 +329,64 @@ public partial class MainViewModel : ViewModelBase
             token
         );
 
-        CacheStatusText = $"💾 Результаты сохранены в БД — {result.Results.Count} точек";
+        CacheStatusText = $"Результаты сохранены в БД — {result.Results.Count} точек";
         return result;
+    }
+
+    // ═══════════════════════════════════════════════════════════════════
+    //  3D-АНАЛИЗ МАТРИЦ T(n, m)
+    // ═══════════════════════════════════════════════════════════════════
+
+    private bool CanRunMatrix3DAnalysis() => !IsRunning && IsMatrixAlgorithmSelected;
+
+    [RelayCommand(CanExecute = nameof(CanRunMatrix3DAnalysis))]
+    private async Task RunMatrix3DAnalysis(CancellationToken cancellationToken)
+    {
+        IsRunning = true;
+        Progress = 0;
+        StatusText = "Запуск 3D-анализа матричного умножения A(n×m) × B(m×k)...";
+
+        _cts = CancellationTokenSource.CreateLinkedTokenSource(cancellationToken);
+
+        try
+        {
+            string htmlPath = await _matrix3DReportService.RunAndGenerateReportAsync(
+                (status, progress) =>
+                {
+                    Avalonia.Threading.Dispatcher.UIThread.Post(() =>
+                    {
+                        StatusText = status;
+                        Progress = (int)(progress * 100);
+                    });
+                },
+                _cts.Token
+            );
+
+            StatusText = $"3D-отчёт успешно создан: {Path.GetFileName(htmlPath)}";
+
+            try
+            {
+                Process.Start(new ProcessStartInfo
+                {
+                    FileName = htmlPath,
+                    UseShellExecute = true
+                });
+            }
+            catch { }
+        }
+        catch (OperationCanceledException)
+        {
+            StatusText = "3D-анализ отменён";
+        }
+        catch (Exception ex)
+        {
+            StatusText = $"Ошибка 3D-анализа: {ex.Message}";
+        }
+        finally
+        {
+            IsRunning = false;
+            Progress = 100;
+        }
     }
 
     // ═══════════════════════════════════════════════════════════════════
@@ -385,20 +451,33 @@ public partial class MainViewModel : ViewModelBase
 
     public void UpdateHoverCoordinates(double x, double y)
     {
+        bool isSteps = CurrentBenchmark?.IsStepBased == true;
+        string unit = isSteps ? "шагов" : "мс";
+        string valPrefix = isSteps ? "S" : "T";
+
         if (Results.Count == 0)
         {
-            HoverCoordinatesText = $"Курсор: n = {x:F0}, T = {y:F4} мс";
+            HoverCoordinatesText = isSteps
+                ? $"Курсор: n = {x:F0}, S = {y:F0} {unit}"
+                : $"Курсор: n = {x:F0}, T = {y:F4} {unit}";
             return;
         }
 
         var nearest = Results.OrderBy(r => Math.Abs(r.N - x)).FirstOrDefault();
         if (nearest != null)
         {
-            HoverCoordinatesText = $"Курсор: n = {x:F0}, T = {y:F4} мс | Ближайшая точка: n = {nearest.N} → Tэксп = {nearest.AverageTimeMs:F4} мс (Tтеор = {nearest.TheoreticalTimeMs:F4} мс)";
+            if (isSteps)
+            {
+                HoverCoordinatesText = $"Курсор: n = {x:F0}, S = {y:F0} {unit} | Ближайшая точка: n = {nearest.N} → Sэксп = {nearest.StepCount} {unit} (Sтеор = {nearest.TheoreticalTimeMs:F1} {unit})";
+            }
+            else
+            {
+                HoverCoordinatesText = $"Курсор: n = {x:F0}, T = {y:F4} {unit} | Ближайшая точка: n = {nearest.N} → Tэксп = {nearest.AverageTimeMs:F4} {unit} (Tтеор = {nearest.TheoreticalTimeMs:F4} {unit})";
+            }
         }
         else
         {
-            HoverCoordinatesText = $"Курсор: n = {x:F0}, T = {y:F4} мс";
+            HoverCoordinatesText = $"Курсор: n = {x:F0}, {valPrefix} = {(isSteps ? y.ToString("F0") : y.ToString("F4"))} {unit}";
         }
     }
 
@@ -410,11 +489,13 @@ public partial class MainViewModel : ViewModelBase
         if (results.Count == 0) return;
 
         double[] xs = results.Select(r => (double)r.N).ToArray();
-        double[] ysExperimental = results.Select(r => r.AverageTimeMs).ToArray();
+        double[] ysExperimental = benchmark.IsStepBased
+            ? results.Select(r => (double)r.StepCount).ToArray()
+            : results.Select(r => r.AverageTimeMs).ToArray();
         double[] ysTheoretical = results.Select(r => r.TheoreticalTimeMs).ToArray();
 
         var expPlot = plt.Add.ScatterLine(xs, ysExperimental);
-        expPlot.LegendText = "Эксперимент";
+        expPlot.LegendText = benchmark.IsStepBased ? "Эксперимент (шаги)" : "Эксперимент";
         expPlot.Color = ScottPlot.Color.FromHex("#2196F3");
         expPlot.LineWidth = 2;
 
@@ -425,8 +506,8 @@ public partial class MainViewModel : ViewModelBase
         theoPlot.LinePattern = LinePattern.Dashed;
 
         plt.Title(benchmark.AlgorithmName);
-        plt.XLabel("Размерность n");
-        plt.YLabel("Время (мс)");
+        plt.XLabel(benchmark.XAxisTitle);
+        plt.YLabel(benchmark.YAxisTitle);
         plt.ShowLegend(Alignment.UpperLeft);
 
         _currentPlot = plt;

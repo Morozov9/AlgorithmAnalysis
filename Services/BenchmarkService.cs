@@ -1,6 +1,7 @@
 using System.Diagnostics;
 using System.Linq;
 using AlgorithmAnalysis.Models;
+using AlgorithmAnalysis.Models.Algorithms;
 
 namespace AlgorithmAnalysis.Services;
 
@@ -25,7 +26,8 @@ public class BenchmarkService
         var result = new BenchmarkResult
         {
             AlgorithmName = algorithm.Name,
-            ComplexityLabel = algorithm.TheoreticalComplexityLabel
+            ComplexityLabel = algorithm.TheoreticalComplexityLabel,
+            IsStepBased = algorithm.MeasureSteps
         };
 
         if (sizes.Length == 0) return result;
@@ -56,6 +58,7 @@ public class BenchmarkService
 
                 int n = sizes[i];
                 var runTimes = new double[RunsPerSize];
+                long stepCount = 0;
 
                 for (int run = 0; run < RunsPerSize; run++)
                 {
@@ -68,6 +71,11 @@ public class BenchmarkService
                     stopwatch.Stop();
 
                     runTimes[run] = stopwatch.Elapsed.TotalMilliseconds;
+
+                    if (algorithm is PowerAlgorithm powerAlgo)
+                    {
+                        stepCount = powerAlgo.LastStepCount;
+                    }
                 }
 
                 // Среднее время по 5 запускам (согласно заданию лабы)
@@ -77,6 +85,7 @@ public class BenchmarkService
                 {
                     N = n,
                     AverageTimeMs = avgTime,
+                    StepCount = stepCount,
                     AllRunsMs = runTimes
                 });
 
@@ -119,20 +128,22 @@ public class BenchmarkService
         foreach (var r in result.Results)
         {
             double fn = algorithm.TheoreticalComplexity(r.N);
-            numerator += r.AverageTimeMs * fn;
+            double actualVal = result.IsStepBased ? r.StepCount : r.AverageTimeMs;
+            numerator += actualVal * fn;
             denominator += fn * fn;
         }
 
         double c = denominator > 0 ? numerator / denominator : 0;
         result.FittedCoefficient = c;
 
-        // Заполняем теоретическое время и считаем MSE
+        // Заполняем теоретическое значение и считаем MSE
         double sumSquaredErrors = 0;
         foreach (var r in result.Results)
         {
             r.TheoreticalTimeMs = c * algorithm.TheoreticalComplexity(r.N);
 
-            double error = r.AverageTimeMs - r.TheoreticalTimeMs;
+            double actualVal = result.IsStepBased ? r.StepCount : r.AverageTimeMs;
+            double error = actualVal - r.TheoreticalTimeMs;
             sumSquaredErrors += error * error;
         }
 

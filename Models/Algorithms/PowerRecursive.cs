@@ -15,7 +15,7 @@ public class PowerRecursive : PowerAlgorithm
     public override string Name => "Возведение в степень: рекурсивный (RecPow)";
     public override string TheoreticalComplexityLabel => "O(log n)";
 
-    public override double TheoreticalComplexity(int n) => Math.Log2(n > 0 ? n : 1);
+    public override double TheoreticalComplexity(int n) => Math.Log2(n + 1);
 
     public override void Execute()
     {

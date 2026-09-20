@@ -37,6 +37,21 @@ public abstract class AbstractAlgorithm
     public abstract double TheoreticalComplexity(int n);
 
     /// <summary>
+    /// Измеряется ли для данного алгоритма количество элементарных операций/шагов
+    /// вместо машинного времени (для степенных алгоритмов — true).
+    /// </summary>
+    public virtual bool MeasureSteps => false;
+
+    /// <summary>Подпись оси Y на графике</summary>
+    public virtual string ValueAxisTitle => MeasureSteps ? "Число операций (шагов)" : "Время выполнения (мс)";
+
+    /// <summary>Подпись оси X на графике</summary>
+    public virtual string ArgumentAxisTitle => MeasureSteps ? "Показатель степени n" : "Размерность входных данных n";
+
+    /// <summary>Краткое обозначение единицы измерения</summary>
+    public virtual string UnitName => MeasureSteps ? "шагов" : "мс";
+
+    /// <summary>
     /// Генерирует "мастер-данные" максимального размера.
     /// Вызывается один раз перед серией экспериментов.
     /// Для векторных алгоритмов — большой массив int[maxN].

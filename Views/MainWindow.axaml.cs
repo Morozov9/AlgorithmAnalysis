@@ -105,11 +105,13 @@ public partial class MainWindow : Window
         if (results.Count > 0)
         {
             double[] xs = results.Select(r => (double)r.N).ToArray();
-            double[] ysExp = results.Select(r => r.AverageTimeMs).ToArray();
+            double[] ysExp = benchmark.IsStepBased
+                ? results.Select(r => (double)r.StepCount).ToArray()
+                : results.Select(r => r.AverageTimeMs).ToArray();
             double[] ysTheo = results.Select(r => r.TheoreticalTimeMs).ToArray();
 
             var expPlot = plt.Add.ScatterLine(xs, ysExp);
-            expPlot.LegendText = "Эксперимент";
+            expPlot.LegendText = benchmark.IsStepBased ? "Эксперимент (шаги)" : "Эксперимент";
             expPlot.Color = ScottPlot.Color.FromHex("#29B6F6");
             expPlot.LineWidth = 2.5f;
 
@@ -120,37 +122,47 @@ public partial class MainWindow : Window
             theoPlot.LinePattern = LinePattern.Dashed;
 
             plt.Title($"{benchmark.AlgorithmName}  |  c = {benchmark.FittedCoefficient:E2}  |  MSE = {benchmark.MSE:E2}");
-            plt.XLabel("Размерность n");
-            plt.YLabel("Время (мс)");
+            plt.XLabel(benchmark.XAxisTitle);
+            plt.YLabel(benchmark.YAxisTitle);
             plt.ShowLegend(Alignment.UpperLeft);
 
-            // Отсекаем выбросы: ограничиваем ось Y по 99-му перцентилю
-            var sortedY = ysExp
-                .Where(y => !double.IsNaN(y) && !double.IsInfinity(y))
-                .OrderBy(y => y)
-                .ToArray();
-
-            double maxY;
-            if (sortedY.Length > 0)
+            if (benchmark.IsStepBased)
             {
-                int idx99 = (int)(sortedY.Length * 0.99);
-                if (idx99 >= sortedY.Length) idx99 = sortedY.Length - 1;
-                double p99 = sortedY[idx99];
-
-                double actualMax = sortedY[^1];
-                maxY = p99 * 1.2;
-                if (maxY < actualMax * 0.3)
-                {
-                    maxY = actualMax * 0.5;
-                }
+                double maxY = Math.Max(ysExp.Max(), ysTheo.Max()) * 1.1;
+                if (maxY <= 0) maxY = 10;
+                double maxX = xs.Max() * 1.05;
+                plt.Axes.SetLimits(0, maxX, 0, maxY);
             }
             else
             {
-                maxY = 1;
-            }
+                // Отсекаем выбросы: ограничиваем ось Y по 99-му перцентилю
+                var sortedY = ysExp
+                    .Where(y => !double.IsNaN(y) && !double.IsInfinity(y))
+                    .OrderBy(y => y)
+                    .ToArray();
 
-            double maxX = xs.Max() * 1.05;
-            plt.Axes.SetLimits(0, maxX, 0, maxY);
+                double maxY;
+                if (sortedY.Length > 0)
+                {
+                    int idx99 = (int)(sortedY.Length * 0.99);
+                    if (idx99 >= sortedY.Length) idx99 = sortedY.Length - 1;
+                    double p99 = sortedY[idx99];
+
+                    double actualMax = sortedY[^1];
+                    maxY = p99 * 1.2;
+                    if (maxY < actualMax * 0.3)
+                    {
+                        maxY = actualMax * 0.5;
+                    }
+                }
+                else
+                {
+                    maxY = 1;
+                }
+
+                double maxX = xs.Max() * 1.05;
+                plt.Axes.SetLimits(0, maxX, 0, maxY);
+            }
         }
 
         _currentPlot = plt;

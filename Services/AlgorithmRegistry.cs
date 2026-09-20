@@ -74,6 +74,13 @@ public static class AlgorithmRegistry
     /// </summary>
     public static int[] GetRecommendedSizes(AbstractAlgorithm algorithm)
     {
+        if (algorithm is PowerAlgorithm)
+        {
+            return algorithm.TheoreticalComplexityLabel == "O(n)"
+                ? BuildLinearSizes(min: 10, max: 2000, step: 50)
+                : BuildSizes(min: 2, max: 100000, count: 25);
+        }
+
         return algorithm.TheoreticalComplexityLabel switch
         {
             // O(n³) — очень тяжёлый: до 500 (~секунды)

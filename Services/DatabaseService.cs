@@ -50,7 +50,7 @@ public class DatabaseService
                         M = null,
                         RunIndex = runIndex + 1,
                         ElapsedMs = result.AllRunsMs[runIndex],
-                        StepCount = null,
+                        StepCount = benchmark.IsStepBased ? result.StepCount : null,
                         ExperimentDate = now,
                         RandomSeed = seed
                     });
@@ -89,8 +89,9 @@ public class DatabaseService
 
     /// <summary>
     /// Проверяет, есть ли в БД данные для заданного алгоритма и набора размеров.
+    /// Для step-based алгоритмов проверяет, что StepCount не равен null.
     /// </summary>
-    public async Task<bool> HasCachedDataAsync(string algorithmName, int[] sizes)
+    public async Task<bool> HasCachedDataAsync(string algorithmName, int[] sizes, bool isStepBased = false)
     {
         if (sizes.Length == 0) return false;
 
@@ -99,11 +100,18 @@ public class DatabaseService
             await using var db = new AppDbContext();
             var sizesList = sizes.ToList();
 
-            var cachedNs = await db.BenchmarkRuns
-                                   .Where(r => r.AlgorithmName == algorithmName && sizesList.Contains(r.N))
-                                   .Select(r => r.N)
-                                   .Distinct()
-                                   .ToListAsync();
+            var query = db.BenchmarkRuns
+                          .Where(r => r.AlgorithmName == algorithmName && sizesList.Contains(r.N));
+
+            if (isStepBased)
+            {
+                query = query.Where(r => r.StepCount != null);
+            }
+
+            var cachedNs = await query
+                                 .Select(r => r.N)
+                                 .Distinct()
+                                 .ToListAsync();
 
             return sizes.All(n => cachedNs.Contains(n));
         }
@@ -121,18 +129,26 @@ public class DatabaseService
         string algorithmName,
         string complexityLabel,
         int[] sizes,
-        Func<int, double> theoreticalFunc)
+        Func<int, double> theoreticalFunc,
+        bool isStepBased = false)
     {
         try
         {
             await using var db = new AppDbContext();
             var sizesList = sizes.ToList();
 
-            var rows = await db.BenchmarkRuns
-                               .Where(r => r.AlgorithmName == algorithmName && sizesList.Contains(r.N))
-                               .OrderBy(r => r.N)
-                               .ThenBy(r => r.RunIndex)
-                               .ToListAsync();
+            var query = db.BenchmarkRuns
+                          .Where(r => r.AlgorithmName == algorithmName && sizesList.Contains(r.N));
+
+            if (isStepBased)
+            {
+                query = query.Where(r => r.StepCount != null);
+            }
+
+            var rows = await query
+                             .OrderBy(r => r.N)
+                             .ThenBy(r => r.RunIndex)
+                             .ToListAsync();
 
             if (rows.Count == 0) return null;
 
@@ -143,6 +159,7 @@ public class DatabaseService
                 {
                     N = g.Key,
                     AverageTimeMs = g.Average(r => r.ElapsedMs),
+                    StepCount = g.FirstOrDefault(r => r.StepCount.HasValue)?.StepCount ?? 0,
                     AllRunsMs = g.Select(r => r.ElapsedMs).ToArray()
                 })
                 .ToList();
@@ -151,6 +168,7 @@ public class DatabaseService
             {
                 AlgorithmName = algorithmName,
                 ComplexityLabel = complexityLabel,
+                IsStepBased = isStepBased,
                 Results = grouped
             };
 
@@ -159,7 +177,8 @@ public class DatabaseService
             foreach (var r in result.Results)
             {
                 double fn = theoreticalFunc(r.N);
-                numerator += r.AverageTimeMs * fn;
+                double actualVal = isStepBased ? r.StepCount : r.AverageTimeMs;
+                numerator += actualVal * fn;
                 denominator += fn * fn;
             }
             double c = denominator > 0 ? numerator / denominator : 0;
@@ -169,7 +188,8 @@ public class DatabaseService
             foreach (var r in result.Results)
             {
                 r.TheoreticalTimeMs = c * theoreticalFunc(r.N);
-                double error = r.AverageTimeMs - r.TheoreticalTimeMs;
+                double actualVal = isStepBased ? r.StepCount : r.AverageTimeMs;
+                double error = actualVal - r.TheoreticalTimeMs;
                 sumSquaredErrors += error * error;
             }
             result.MSE = result.Results.Count > 0 ? sumSquaredErrors / result.Results.Count : 0;

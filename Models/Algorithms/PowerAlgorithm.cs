@@ -8,8 +8,8 @@ namespace AlgorithmAnalysis.Models.Algorithms;
 /// </summary>
 public abstract class PowerAlgorithm : AbstractAlgorithm
 {
-    /// <summary>Основание степени x (по умолчанию 1.5)</summary>
-    protected const double BaseX = 1.5;
+    /// <summary>Основание степени x (1.0 исключает переполнение double при n > 1000)</summary>
+    protected const double BaseX = 1.0;
 
     /// <summary>Текущий показатель степени n</summary>
     protected int _n;
@@ -19,6 +19,8 @@ public abstract class PowerAlgorithm : AbstractAlgorithm
 
     /// <summary>Количество шагов (умножений / вызовов) последнего запуска</summary>
     public long LastStepCount { get; protected set; }
+
+    public override bool MeasureSteps => true;
 
     public override string Group => "Возведение в степень";
 
