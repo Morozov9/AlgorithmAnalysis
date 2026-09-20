@@ -1,4 +1,5 @@
 using System.Diagnostics;
+using System.Linq;
 using AlgorithmAnalysis.Models;
 
 namespace AlgorithmAnalysis.Services;
@@ -15,15 +16,6 @@ public class BenchmarkService
     /// <summary>Seed для генератора случайных чисел (для воспроизводимости)</summary>
     public int RandomSeed { get; set; } = 42;
 
-    /// <summary>
-    /// Запускает серию экспериментов для алгоритма.
-    /// Выполняется асинхронно в фоновом потоке, не блокируя интерфейс.
-    /// </summary>
-    /// <param name="algorithm">Алгоритм для тестирования</param>
-    /// <param name="sizes">Массив размеров данных [n1, n2, ..., nk]</param>
-    /// <param name="progress">Callback для отчёта о прогрессе (0.0 .. 1.0)</param>
-    /// <param name="cancellationToken">Токен отмены</param>
-    /// <returns>Полный результат бенчмарка</returns>
     public async Task<BenchmarkResult> RunBenchmarkAsync(
         AbstractAlgorithm algorithm,
         int[] sizes,
@@ -92,8 +84,7 @@ public class BenchmarkService
                 progress?.Invoke((double)(i + 1) / totalExperiments);
             }
 
-            // 4. Подбираем коэффициент c для теоретической кривой T = c·f(n)
-            // Метод наименьших квадратов: c = Σ(Ti · f(ni)) / Σ(f(ni)²)
+            // 4. Аппроксимация МНК + MSE
             FitTheoreticalCurve(algorithm, result);
 
             return result;
@@ -118,7 +109,7 @@ public class BenchmarkService
 
     /// <summary>
     /// Подбирает коэффициент c для теоретической кривой T = c·f(n)
-    /// методом наименьших квадратов.
+    /// методом наименьших квадратов и вычисляет MSE.
     /// </summary>
     private static void FitTheoreticalCurve(AbstractAlgorithm algorithm, BenchmarkResult result)
     {
@@ -135,10 +126,18 @@ public class BenchmarkService
         double c = denominator > 0 ? numerator / denominator : 0;
         result.FittedCoefficient = c;
 
-        // Заполняем теоретическое время
+        // Заполняем теоретическое время и считаем MSE
+        double sumSquaredErrors = 0;
         foreach (var r in result.Results)
         {
             r.TheoreticalTimeMs = c * algorithm.TheoreticalComplexity(r.N);
+
+            double error = r.AverageTimeMs - r.TheoreticalTimeMs;
+            sumSquaredErrors += error * error;
         }
+
+        result.MSE = result.Results.Count > 0
+            ? sumSquaredErrors / result.Results.Count
+            : 0;
     }
 }

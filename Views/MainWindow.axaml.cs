@@ -119,11 +119,38 @@ public partial class MainWindow : Window
             theoPlot.LineWidth = 2;
             theoPlot.LinePattern = LinePattern.Dashed;
 
-            plt.Title(benchmark.AlgorithmName);
+            plt.Title($"{benchmark.AlgorithmName}  |  c = {benchmark.FittedCoefficient:E2}  |  MSE = {benchmark.MSE:E2}");
             plt.XLabel("Размерность n");
             plt.YLabel("Время (мс)");
             plt.ShowLegend(Alignment.UpperLeft);
-            plt.Axes.AutoScale();
+
+            // Отсекаем выбросы: ограничиваем ось Y по 99-му перцентилю
+            var sortedY = ysExp
+                .Where(y => !double.IsNaN(y) && !double.IsInfinity(y))
+                .OrderBy(y => y)
+                .ToArray();
+
+            double maxY;
+            if (sortedY.Length > 0)
+            {
+                int idx99 = (int)(sortedY.Length * 0.99);
+                if (idx99 >= sortedY.Length) idx99 = sortedY.Length - 1;
+                double p99 = sortedY[idx99];
+
+                double actualMax = sortedY[^1];
+                maxY = p99 * 1.2;
+                if (maxY < actualMax * 0.3)
+                {
+                    maxY = actualMax * 0.5;
+                }
+            }
+            else
+            {
+                maxY = 1;
+            }
+
+            double maxX = xs.Max() * 1.05;
+            plt.Axes.SetLimits(0, maxX, 0, maxY);
         }
 
         _currentPlot = plt;
@@ -168,7 +195,6 @@ public partial class MainWindow : Window
         double spanX = limits.Right - limits.Left;
         double spanY = limits.Top - limits.Bottom;
 
-        // Предотвращаем бесконечное отдаление
         if (factor < 1.0 && (spanX > 50_000 || spanY > 10_000))
         {
             return;
@@ -192,7 +218,6 @@ public partial class MainWindow : Window
         double newBottom = mouseY - fracY * newSpanY;
         double newTop = newBottom + newSpanY;
 
-        // Защита от ухода в отрицательную полуплоскость при отдалении
         if (newLeft < -spanX * 0.2)
         {
             double corr = -spanX * 0.2 - newLeft;
@@ -233,7 +258,6 @@ public partial class MainWindow : Window
         int w = Math.Max(100, (int)ChartContainer.Bounds.Width);
         int h = Math.Max(100, (int)ChartContainer.Bounds.Height);
 
-        // Панорамирование при зажатой левой кнопке мыши
         if (_isPanning && _lastPanPoint.HasValue)
         {
             double dx = pos.X - _lastPanPoint.Value.X;
@@ -244,7 +268,6 @@ public partial class MainWindow : Window
             double spanX = limits.Right - limits.Left;
             double spanY = limits.Top - limits.Bottom;
 
-            // Точный 1:1 физический перенос по экрану
             double deltaX = -dx * (spanX / w);
             double deltaY = dy * (spanY / h);
 
@@ -253,7 +276,6 @@ public partial class MainWindow : Window
             double newBottom = limits.Bottom + deltaY;
             double newTop = limits.Top + deltaY;
 
-            // Ограничение: не даём утянуть график за видимые разумные границы
             if (newLeft < -spanX)
             {
                 double diff = -spanX - newLeft;

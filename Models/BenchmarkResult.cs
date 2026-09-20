@@ -17,4 +17,11 @@ public class BenchmarkResult
 
     /// <summary>Подобранный коэффициент c для теоретической кривой T = c·f(n)</summary>
     public double FittedCoefficient { get; set; }
+
+    /// <summary>
+    /// Среднеквадратичная ошибка аппроксимации (MSE):
+    /// MSE = (1/k) · Σ (T_эксп(n_i) − T_теор(n_i))²
+    /// Чем меньше — тем лучше теория описывает эксперимент.
+    /// </summary>
+    public double MSE { get; set; }
 }

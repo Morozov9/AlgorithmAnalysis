@@ -11,6 +11,7 @@ public static class AlgorithmRegistry
 {
     /// <summary>
     /// Возвращает список всех доступных алгоритмов.
+    /// Чтобы добавить новый — просто добавь его в этот список.
     /// </summary>
     public static List<AbstractAlgorithm> GetAllAlgorithms()
     {
@@ -18,47 +19,47 @@ public static class AlgorithmRegistry
         [
             // I.1 — Постоянная функция
             new ConstantFunction(),
-            
+
             // I.2 — Сумма элементов
             new SumFunction(),
-            
+
             // I.3 — Произведение элементов
             new ProductFunction(),
-            
+
             // I.4a — Полином (наивно)
             new PolynomialNaive(),
-            
+
             // I.4b — Полином (Горнер)
             new PolynomialHorner(),
-            
+
             // I.5 — Пузырьковая сортировка
             new BubbleSortAlgorithm(),
-            
+
             // I.6 — Быстрая сортировка
             new QuickSortAlgorithm(),
-            
+
             // I.7 — Timsort
             new TimSortAlgorithm(),
-            
-            // I.8a — Возведение в степень: простой итеративный (Рис. 1, Pow)
+
+            // I.8a — Возведение в степень: простой (Pow)
             new PowerNaive(),
 
-            // I.8b — Возведение в степень: рекурсивный (Рис. 2, RecPow)
+            // I.8b — Возведение в степень: рекурсивный (RecPow)
             new PowerRecursive(),
-            
-            // I.8c — Возведение в степень: быстрый (Рис. 3, QuickPow)
+
+            // I.8c — Возведение в степень: быстрый (QuickPow)
             new PowerFast(),
 
-            // I.8d — Возведение в степень: классический быстрый (Рис. 4, QuickPow1)
+            // I.8d — Возведение в степень: классический быстрый (QuickPow1)
             new PowerClassic(),
-            
+
             // II — Матричное умножение
             new MatrixMultiplication(),
-            
+
             // III — Сортировка слиянием
             new MergeSortAlgorithm(),
 
-            // III — Сортировка вставками (Insertion Sort)
+            // III — Сортировка вставками
             new InsertionSortAlgorithm(),
 
             // IV — Числа Фибоначчи (рекурсивный)
@@ -68,32 +69,32 @@ public static class AlgorithmRegistry
 
     /// <summary>
     /// Возвращает рекомендуемые размеры данных для алгоритма.
-    /// Подобраны с учётом задания (n от 1 до 2000) и сложности алгоритма,
-    /// чтобы графики строились быстро и наглядно отражали теоретические кривые.
+    /// Подобраны так, чтобы последняя точка была достаточно заметной
+    /// (не микросекунды), но программа не зависала.
     /// </summary>
     public static int[] GetRecommendedSizes(AbstractAlgorithm algorithm)
     {
         return algorithm.TheoreticalComplexityLabel switch
         {
-            // Для O(n³) ограничено 300, чтобы избежать зависания (2000³ операций = 8 млрд)
-            "O(n³)" => BuildLinearSizes(min: 10, max: 300, step: 20),
+            // O(n³) — очень тяжёлый: до 500 (~секунды)
+            "O(n³)" => BuildLinearSizes(min: 10, max: 500, step: 25),
 
-            // Для O(n²) диапазон в точности соответствует лабораторной работе (до 2000)
-            "O(n²)" => BuildLinearSizes(min: 50, max: 2000, step: 50),
+            // O(n²) — тяжёлый: до 5000 (~5 сек на последней точке)
+            "O(n²)" => BuildLinearSizes(min: 50, max: 5000, step: 100),
 
-            // Для O(n log n) диапазон до 2000 с шагом 50
-            "O(n log n)" => BuildLinearSizes(min: 50, max: 2000, step: 50),
+            // O(n log n) — средний: до 100000
+            "O(n log n)" => BuildLinearSizes(min: 100, max: 100000, step: 2000),
 
-            // Для O(n) диапазон до 2000 с шагом 50
-            "O(n)" => BuildLinearSizes(min: 50, max: 2000, step: 50),
+            // O(n) — быстрый: до 1 000 000
+            "O(n)" => BuildLinearSizes(min: 1000, max: 1000000, step: 20000),
 
-            // Для O(log n) логарифмическая шкала для лучшей наглядности кривой
-            "O(log n)" => BuildSizes(min: 10, max: 2000000, count: 40),
+            // O(log n) — очень быстрый: до 10 000 000 (геометрически)
+            "O(log n)" => BuildSizes(min: 10, max: 10000000, count: 40),
 
-            // Для O(1) диапазон до 2000 с шагом 50
-            "O(1)" => BuildLinearSizes(min: 50, max: 2000, step: 50),
+            // O(1) — мгновенный: до 1 000 000
+            "O(1)" => BuildLinearSizes(min: 1000, max: 1000000, step: 20000),
 
-            // Для O(2^n) — только малые значения! F(36) уже считается ~секунду, F(40) — десятки секунд
+            // O(2^n) — только малые значения! F(35) ~ 1 сек, F(40) — минуты
             "O(2^n)" => BuildLinearSizes(min: 1, max: 35, step: 1),
 
             _ => BuildLinearSizes(min: 50, max: 2000, step: 50)
@@ -101,7 +102,8 @@ public static class AlgorithmRegistry
     }
 
     /// <summary>
-    /// Создает массив размеров с равномерным линейным шагом.
+    /// Массив размеров с равномерным линейным шагом.
+    /// Гарантирует, что max попадёт в результат.
     /// </summary>
     public static int[] BuildLinearSizes(int min, int max, int step)
     {
@@ -114,11 +116,12 @@ public static class AlgorithmRegistry
         {
             list.Add(max);
         }
-        return [.. list.Distinct()];
+        return [.. list.Distinct().OrderBy(x => x)];
     }
 
     /// <summary>
-    /// Создает массив размеров в геометрической прогрессии.
+    /// Массив размеров в геометрической прогрессии (count точек от min до max).
+    /// Полезно для алгоритмов с огромным диапазоном (O(log n), O(n log n)).
     /// </summary>
     public static int[] BuildSizes(int min, int max, int count)
     {
@@ -134,6 +137,6 @@ public static class AlgorithmRegistry
             current *= ratio;
         }
 
-        return sizes.Distinct().ToArray();
+        return sizes.Distinct().OrderBy(x => x).ToArray();
     }
 }

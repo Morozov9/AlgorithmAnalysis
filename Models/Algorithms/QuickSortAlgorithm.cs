@@ -2,7 +2,7 @@ namespace AlgorithmAnalysis.Models.Algorithms;
 
 /// <summary>
 /// Задание I.6: Быстрая сортировка (Quick Sort).
-/// Теоретическая сложность: O(n log n) — средний случай
+/// Теоретическая сложность: O(n log n) — средний случай, O(n²) — худший.
 /// </summary>
 public class QuickSortAlgorithm : VectorAlgorithm
 {
@@ -34,7 +34,7 @@ public class QuickSortAlgorithm : VectorAlgorithm
 
     private static int Partition(int[] arr, int low, int high)
     {
-        // Выбираем опорный элемент из середины для устойчивости к частично упорядоченным данным
+        // Опорный элемент — средний (устойчиво к частично отсортированным данным)
         int pivot = arr[low + (high - low) / 2];
         int i = low - 1;
         int j = high + 1;

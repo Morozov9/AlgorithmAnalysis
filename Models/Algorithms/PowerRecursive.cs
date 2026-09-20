@@ -1,12 +1,14 @@
 namespace AlgorithmAnalysis.Models.Algorithms;
 
 /// <summary>
-/// Задание I.8 (Рис. 2): Возведение в степень (рекурсивный алгоритм RecPow).
-/// Формула (3):
-/// x^n = 1 при n = 0;
-/// x * (x^(n div 2))^2 при n нечетном;
-/// (x^(n div 2))^2 при n четном.
-/// Теоретическая сложность: O(log n)
+/// Задание I.8 (Рис. 2) + Часть IV: Рекурсивный алгоритм возведения в степень (RecPow).
+///
+/// Формула:
+///   x^0 = 1
+///   x^n = x · (x^(n div 2))²  при нечётном n
+///   x^n = (x^(n div 2))²      при чётном n
+///
+/// Теоретическая сложность по шагам: O(log n).
 /// </summary>
 public class PowerRecursive : PowerAlgorithm
 {
@@ -17,20 +19,19 @@ public class PowerRecursive : PowerAlgorithm
 
     public override void Execute()
     {
-        _result = RecPow(BaseX, _n);
+        long steps = 0;
+        _result = RecPow(BaseX, _n, ref steps);
+        LastStepCount = steps;
     }
 
-    private static double RecPow(double x, int n)
+    private static double RecPow(double x, int n, ref long steps)
     {
+        steps++;   // считаем каждый рекурсивный вызов
+
         if (n == 0) return 1.0;
 
-        double f = RecPow(x, n / 2);
+        double f = RecPow(x, n / 2, ref steps);
 
-        if (n % 2 == 1)
-        {
-            return f * f * x;
-        }
-
-        return f * f;
+        return (n % 2 == 1) ? f * f * x : f * f;
     }
 }

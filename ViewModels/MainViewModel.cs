@@ -1,6 +1,7 @@
 using System.Collections.ObjectModel;
 using System.Diagnostics;
 using System.IO;
+using System.Linq;
 using Avalonia.Media.Imaging;
 using CommunityToolkit.Mvvm.ComponentModel;
 using CommunityToolkit.Mvvm.Input;
@@ -17,16 +18,33 @@ public partial class MainViewModel : ViewModelBase
     private readonly DatabaseService _databaseService = new();
     private CancellationTokenSource? _cts;
 
-    // Храним ScottPlot.Plot для экспорта в файл
     private ScottPlot.Plot? _currentPlot;
 
-    /// <summary>Список всех доступных алгоритмов</summary>
-    public ObservableCollection<AbstractAlgorithm> Algorithms { get; } = new(AlgorithmRegistry.GetAllAlgorithms());
+    /// <summary>Список всех доступных алгоритмов (с чекбоксами)</summary>
+    public ObservableCollection<SelectableAlgorithm> Algorithms { get; }
 
-    /// <summary>Выбранный алгоритм</summary>
+    public MainViewModel()
+    {
+        var items = AlgorithmRegistry.GetAllAlgorithms()
+                                     .Select(a => new SelectableAlgorithm(a))
+                                     .ToList();
+
+        Algorithms = new ObservableCollection<SelectableAlgorithm>(items);
+
+        // Подписка на изменение выбора каждого алгоритма — обновляет CanExecute у RunAllSelected
+        foreach (var item in Algorithms)
+        {
+            item.SelectionChanged += (_, _) =>
+            {
+                RunAllSelectedCommand.NotifyCanExecuteChanged();
+            };
+        }
+    }
+
+    /// <summary>Выбранный алгоритм (обёртка с чекбоксом)</summary>
     [ObservableProperty]
     [NotifyCanExecuteChangedFor(nameof(RunBenchmarkCommand))]
-    public partial AbstractAlgorithm? SelectedAlgorithm { get; set; }
+    public partial SelectableAlgorithm? SelectedAlgorithm { get; set; }
 
     /// <summary>Результаты экспериментов (для DataGrid)</summary>
     public ObservableCollection<ExperimentResult> Results { get; } = [];
@@ -35,7 +53,7 @@ public partial class MainViewModel : ViewModelBase
     [ObservableProperty]
     public partial BenchmarkResult? CurrentBenchmark { get; set; }
 
-    /// <summary>Изображение графика для отображения в Image (обратная совместимость)</summary>
+    /// <summary>Изображение графика для отображения в Image</summary>
     [ObservableProperty]
     public partial Bitmap? ChartImageSource { get; set; }
 
@@ -47,13 +65,14 @@ public partial class MainViewModel : ViewModelBase
     [ObservableProperty]
     public partial string StatusText { get; set; } = "Выберите алгоритм и нажмите «Запустить»";
 
-    /// <summary>Текст координат и ближайшей точки при наведении курсора на график</summary>
+    /// <summary>Текст координат при наведении</summary>
     [ObservableProperty]
     public partial string HoverCoordinatesText { get; set; } = "Наведите курсор на график для просмотра координат";
 
     /// <summary>Идёт ли бенчмарк или генерация отчёта</summary>
     [ObservableProperty]
     [NotifyCanExecuteChangedFor(nameof(RunBenchmarkCommand))]
+    [NotifyCanExecuteChangedFor(nameof(RunAllSelectedCommand))]
     [NotifyCanExecuteChangedFor(nameof(GenerateReportCommand))]
     [NotifyCanExecuteChangedFor(nameof(CancelCommand))]
     public partial bool IsRunning { get; set; }
@@ -62,40 +81,53 @@ public partial class MainViewModel : ViewModelBase
     [ObservableProperty]
     public partial string SizesText { get; set; } = string.Empty;
 
-    /// <summary>
-    /// Если true — игнорировать кэш и запустить бенчмарк заново, даже если данные уже есть в БД.
-    /// Если false (по умолчанию) — загружать результаты из кэша, если они там есть.
-    /// </summary>
+    /// <summary>Принудительный пересчёт (игнорировать кэш)</summary>
     [ObservableProperty]
     public partial bool ForceRecalculate { get; set; } = false;
 
-    /// <summary>Текст о состоянии кэша — показывается под чекбоксом</summary>
+    /// <summary>Текст о состоянии кэша</summary>
     [ObservableProperty]
     public partial string CacheStatusText { get; set; } = string.Empty;
 
-    /// <summary>Событие обновления данных графика для интерактивного AvaPlot</summary>
+    /// <summary>Событие обновления данных графика</summary>
     public event EventHandler<BenchmarkResult>? BenchmarkPlotUpdated;
 
-    partial void OnSelectedAlgorithmChanged(AbstractAlgorithm? value)
+    partial void OnSelectedAlgorithmChanged(SelectableAlgorithm? value)
     {
         if (value == null) return;
 
-        var sizes = AlgorithmRegistry.GetRecommendedSizes(value);
+        var algo = value.Algorithm;
+        var sizes = AlgorithmRegistry.GetRecommendedSizes(algo);
         SizesText = string.Join(", ", sizes);
 
-        // Проверяем кэш в фоне и обновляем подсказку
         CacheStatusText = string.Empty;
         _ = Task.Run(async () =>
         {
-            bool hasCached = await _databaseService.HasCachedDataAsync(value.Name, sizes);
-            Avalonia.Threading.Dispatcher.UIThread.Post(() =>
+            try
             {
-                CacheStatusText = hasCached
-                    ? $"✅ Кэш: данные для {sizes.Length} точек уже сохранены в БД"
-                    : "ℹ️ Кэша нет — будет запущен полный бенчмарк";
-            });
+                bool hasCached = await _databaseService.HasCachedDataAsync(algo.Name, sizes);
+                Avalonia.Threading.Dispatcher.UIThread.Post(() =>
+                {
+                    CacheStatusText = hasCached
+                        ? $"✅ Кэш: данные для {sizes.Length} точек уже сохранены в БД"
+                        : "ℹ️ Кэша нет — будет запущен полный бенчмарк";
+                });
+            }
+            catch (Exception ex)
+            {
+                Avalonia.Threading.Dispatcher.UIThread.Post(() =>
+                {
+                    CacheStatusText = $"⚠ БД недоступна: {ex.Message}";
+                });
+            }
         });
+
+        RunAllSelectedCommand.NotifyCanExecuteChanged();
     }
+
+    // ═══════════════════════════════════════════════════════════════════
+    //  ОДИНОЧНЫЙ ЗАПУСК
+    // ═══════════════════════════════════════════════════════════════════
 
     private bool CanRunBenchmark() => SelectedAlgorithm != null && !IsRunning;
 
@@ -103,6 +135,8 @@ public partial class MainViewModel : ViewModelBase
     private async Task RunBenchmark(CancellationToken cancellationToken)
     {
         if (SelectedAlgorithm == null) return;
+
+        var algo = SelectedAlgorithm.Algorithm;
 
         IsRunning = true;
         Progress = 0;
@@ -120,11 +154,9 @@ public partial class MainViewModel : ViewModelBase
                 return;
             }
 
-            var algo = SelectedAlgorithm;
             BenchmarkResult benchmarkResult;
             bool loadedFromCache = false;
 
-            // ── Пробуем загрузить из кэша ───────────────────────────────────────
             if (!ForceRecalculate && await _databaseService.HasCachedDataAsync(algo.Name, sizes))
             {
                 StatusText = $"⏳ Загрузка из кэша: {algo.Name}...";
@@ -144,13 +176,11 @@ public partial class MainViewModel : ViewModelBase
                 }
                 else
                 {
-                    // Кэш есть в БД, но данные не удалось восстановить — запускаем полный бенчмарк
                     benchmarkResult = await RunFullBenchmarkAsync(algo, sizes, _cts.Token);
                 }
             }
             else
             {
-                // ── Принудительный пересчёт или кэша нет ───────────────────────
                 if (ForceRecalculate)
                 {
                     await _databaseService.DeleteRunsAsync(algo.Name);
@@ -165,12 +195,11 @@ public partial class MainViewModel : ViewModelBase
             foreach (var r in benchmarkResult.Results)
                 Results.Add(r);
 
-            // Строим график
             RenderChart(benchmarkResult);
 
             StatusText = loadedFromCache
-                ? $"Из кэша: {algo.Name} | Коэффициент c = {benchmarkResult.FittedCoefficient:E3}"
-                : $"Готово: {algo.Name} | Коэффициент c = {benchmarkResult.FittedCoefficient:E3}";
+                ? $"Из кэша: {algo.Name} | c = {benchmarkResult.FittedCoefficient:E3} | MSE = {benchmarkResult.MSE:E3}"
+                : $"Готово: {algo.Name} | c = {benchmarkResult.FittedCoefficient:E3} | MSE = {benchmarkResult.MSE:E3}";
         }
         catch (OperationCanceledException)
         {
@@ -192,9 +221,86 @@ public partial class MainViewModel : ViewModelBase
         }
     }
 
-    /// <summary>
-    /// Вспомогательный метод: запускает полный бенчмарк и обновляет статус кэша.
-    /// </summary>
+    // ═══════════════════════════════════════════════════════════════════
+    //  ОЧЕРЕДЬ: ЗАПУСТИТЬ ВСЕ ВЫБРАННЫЕ
+    // ═══════════════════════════════════════════════════════════════════
+
+    private bool CanRunAllSelected() => !IsRunning && Algorithms.Any(a => a.IsSelected);
+
+    [RelayCommand(CanExecute = nameof(CanRunAllSelected))]
+    private async Task RunAllSelected(CancellationToken cancellationToken)
+    {
+        var selected = Algorithms.Where(a => a.IsSelected).Select(a => a.Algorithm).ToList();
+        if (selected.Count == 0)
+        {
+            StatusText = "⚠ Не выбрано ни одного алгоритма";
+            return;
+        }
+
+        IsRunning = true;
+        Progress = 0;
+        _cts = CancellationTokenSource.CreateLinkedTokenSource(cancellationToken);
+
+        int total = selected.Count;
+        int done = 0;
+
+        try
+        {
+            foreach (var algo in selected)
+            {
+                if (_cts.Token.IsCancellationRequested) break;
+
+                done++;
+                StatusText = $"⏳ [{done}/{total}] {algo.Name}...";
+
+                // Синхронизируем SelectedAlgorithm с текущим алгоритмом в очереди
+                var wrapper = Algorithms.FirstOrDefault(a => a.Algorithm == algo);
+                if (wrapper != null)
+                    SelectedAlgorithm = wrapper;
+
+                var sizes = ParseSizes(SizesText);
+                if (sizes.Length == 0)
+                {
+                    StatusText = $"⚠ [{done}/{total}] Некорректные размеры для {algo.Name}";
+                    continue;
+                }
+
+                try
+                {
+                    var result = await _benchmarkService.RunBenchmarkAsync(
+                        algo, sizes,
+                        progress => Avalonia.Threading.Dispatcher.UIThread.Post(() =>
+                        {
+                            Progress = (int)(((done - 1 + progress) / total) * 100);
+                        }),
+                        _cts.Token);
+
+                    CurrentBenchmark = result;
+                    Results.Clear();
+                    foreach (var r in result.Results) Results.Add(r);
+                    RenderChart(result);
+
+                    StatusText = $"✅ [{done}/{total}] {algo.Name} | c={result.FittedCoefficient:E2} | MSE={result.MSE:E2}";
+                }
+                catch (Exception ex)
+                {
+                    StatusText = $"❌ [{done}/{total}] {algo.Name}: {ex.Message}";
+                }
+            }
+
+            StatusText = $"🎉 Готово! Обработано {done}/{total} алгоритмов";
+            Progress = 100;
+        }
+        catch (OperationCanceledException)
+        {
+            StatusText = $"Отменено на {done}/{total}";
+        }
+        finally
+        {
+            IsRunning = false;
+        }
+    }
+
     private async Task<BenchmarkResult> RunFullBenchmarkAsync(
         AbstractAlgorithm algo, int[] sizes, CancellationToken token)
     {
@@ -216,6 +322,10 @@ public partial class MainViewModel : ViewModelBase
         CacheStatusText = $"💾 Результаты сохранены в БД — {result.Results.Count} точек";
         return result;
     }
+
+    // ═══════════════════════════════════════════════════════════════════
+    //  ГЕНЕРАЦИЯ ОТЧЁТА
+    // ═══════════════════════════════════════════════════════════════════
 
     private bool CanGenerateReport() => !IsRunning;
 
@@ -244,7 +354,6 @@ public partial class MainViewModel : ViewModelBase
 
             StatusText = $"Отчёт успешно создан: {Path.GetFileName(htmlPath)}";
 
-            // Открываем созданный HTML-отчёт в браузере по умолчанию
             try
             {
                 Process.Start(new ProcessStartInfo
@@ -253,10 +362,7 @@ public partial class MainViewModel : ViewModelBase
                     UseShellExecute = true
                 });
             }
-            catch
-            {
-                // Игнорируем ошибку запуска внешнего процесса
-            }
+            catch { }
         }
         catch (OperationCanceledException)
         {
@@ -273,9 +379,10 @@ public partial class MainViewModel : ViewModelBase
         }
     }
 
-    /// <summary>
-    /// Обновляет отображение координат под курсором и находит ближайшую точку замера.
-    /// </summary>
+    // ═══════════════════════════════════════════════════════════════════
+    //  ВСПОМОГАТЕЛЬНОЕ
+    // ═══════════════════════════════════════════════════════════════════
+
     public void UpdateHoverCoordinates(double x, double y)
     {
         if (Results.Count == 0)
@@ -295,9 +402,6 @@ public partial class MainViewModel : ViewModelBase
         }
     }
 
-    /// <summary>
-    /// Рендерит ScottPlot график в Avalonia Bitmap и уведомляет интерактивный контрол.
-    /// </summary>
     private void RenderChart(BenchmarkResult benchmark)
     {
         var plt = new ScottPlot.Plot();
@@ -309,13 +413,11 @@ public partial class MainViewModel : ViewModelBase
         double[] ysExperimental = results.Select(r => r.AverageTimeMs).ToArray();
         double[] ysTheoretical = results.Select(r => r.TheoreticalTimeMs).ToArray();
 
-        // Экспериментальная кривая (синяя)
         var expPlot = plt.Add.ScatterLine(xs, ysExperimental);
         expPlot.LegendText = "Эксперимент";
         expPlot.Color = ScottPlot.Color.FromHex("#2196F3");
         expPlot.LineWidth = 2;
 
-        // Теоретическая кривая (красная, пунктир)
         var theoPlot = plt.Add.ScatterLine(xs, ysTheoretical);
         theoPlot.LegendText = $"Теория {benchmark.ComplexityLabel}";
         theoPlot.Color = ScottPlot.Color.FromHex("#F44336");
@@ -329,19 +431,13 @@ public partial class MainViewModel : ViewModelBase
 
         _currentPlot = plt;
 
-        // Рендерим в PNG → MemoryStream → Avalonia Bitmap
         byte[] pngBytes = plt.GetImageBytes(1100, 450, ImageFormat.Png);
         using var ms = new MemoryStream(pngBytes);
         ChartImageSource = new Bitmap(ms);
 
-        // Уведомляем интерактивный график AvaPlot
         BenchmarkPlotUpdated?.Invoke(this, benchmark);
     }
 
-    /// <summary>
-    /// Парсит строку размеров: поддерживает как числа через запятую/пробел,
-    /// так и диапазоны вида start..end:step (например, 1..2000:50).
-    /// </summary>
     public static int[] ParseSizes(string text)
     {
         if (string.IsNullOrWhiteSpace(text)) return [];
@@ -414,7 +510,7 @@ public partial class MainViewModel : ViewModelBase
     {
         if (SelectedAlgorithm != null)
         {
-            var sizes = AlgorithmRegistry.GetRecommendedSizes(SelectedAlgorithm);
+            var sizes = AlgorithmRegistry.GetRecommendedSizes(SelectedAlgorithm.Algorithm);
             SizesText = string.Join(", ", sizes);
         }
     }
@@ -428,7 +524,6 @@ public partial class MainViewModel : ViewModelBase
         StatusText = "Отмена...";
     }
 
-    /// <summary>Событие для запроса экспорта (обрабатывается во View для SaveFileDialog)</summary>
     public event EventHandler? ExportRequested;
 
     [RelayCommand]
@@ -437,7 +532,6 @@ public partial class MainViewModel : ViewModelBase
         ExportRequested?.Invoke(this, EventArgs.Empty);
     }
 
-    /// <summary>Сохраняет текущий график в файл</summary>
     public void SaveChartToFile(string path)
     {
         _currentPlot?.SavePng(path, 1200, 700);
