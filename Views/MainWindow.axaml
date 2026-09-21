@@ -15,7 +15,7 @@
 
 		<!-- ══════════ ЛЕВАЯ ПАНЕЛЬ: список алгоритмов ══════════ -->
 		<Border Grid.Column="0" BorderBrush="#DDDDDD" BorderThickness="0,0,1,0" Padding="10">
-			<Grid RowDefinitions="Auto,*,Auto,Auto,Auto,Auto,Auto">
+				<Grid RowDefinitions="Auto,*,Auto,Auto,Auto,Auto,Auto,Auto">
 
 				<TextBlock Grid.Row="0" Text="Выбор алгоритмов"
                            FontSize="16" FontWeight="Bold" Margin="0,0,0,8"/>
@@ -28,7 +28,7 @@
                              BorderThickness="0">
 						<ListBox.ItemTemplate>
 							<DataTemplate x:DataType="vm:SelectableAlgorithm">
-								<Grid ColumnDefinitions="Auto,*" Margin="0,4">
+								<Grid ColumnDefinitions="Auto,*,Auto" Margin="0,4">
 									<CheckBox Grid.Column="0"
                                               IsChecked="{Binding IsSelected}"
                                               VerticalAlignment="Center"
@@ -41,6 +41,15 @@
                                                    FontSize="11"
                                                    Foreground="#888888"/>
 									</StackPanel>
+									<Border Grid.Column="2"
+                                            IsVisible="{Binding HasResult}"
+                                            Background="#EEF2FF"
+                                            CornerRadius="4"
+                                            Padding="5,2"
+                                            VerticalAlignment="Center"
+                                            Margin="4,0,0,0">
+										<TextBlock Text="Готов" FontSize="10" Foreground="#4F46E5" FontWeight="SemiBold"/>
+									</Border>
 								</Grid>
 							</DataTemplate>
 						</ListBox.ItemTemplate>
@@ -103,8 +112,21 @@
                         FontSize="13"
                         Padding="10"/>
 
+				<!-- Кнопка "Сравнить выбранные" -->
+				<Button Grid.Row="6"
+                        Content="Сравнить выбранные"
+                        Command="{Binding CompareSelectedCommand}"
+                        Margin="0,6,0,0"
+                        HorizontalAlignment="Stretch"
+                        HorizontalContentAlignment="Center"
+                        Background="#4F46E5"
+                        Foreground="White"
+                        FontWeight="Bold"
+                        FontSize="13"
+                        Padding="10"/>
+
 				<!-- Чекбокс принудительного пересчёта -->
-				<CheckBox Grid.Row="6"
+				<CheckBox Grid.Row="7"
                           Content="Принудительный пересчёт (игнорировать кэш)"
                           IsChecked="{Binding ForceRecalculate}"
                           Margin="0,8,0,0"

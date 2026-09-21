@@ -32,12 +32,13 @@ public partial class MainViewModel : ViewModelBase
 
         Algorithms = new ObservableCollection<SelectableAlgorithm>(items);
 
-        // Подписка на изменение выбора каждого алгоритма — обновляет CanExecute у RunAllSelected
+        // Подписка на изменение выбора каждого алгоритма — обновляет CanExecute у RunAllSelected и CompareSelected
         foreach (var item in Algorithms)
         {
             item.SelectionChanged += (_, _) =>
             {
                 RunAllSelectedCommand.NotifyCanExecuteChanged();
+                CompareSelectedCommand.NotifyCanExecuteChanged();
             };
         }
     }
@@ -79,6 +80,7 @@ public partial class MainViewModel : ViewModelBase
     [ObservableProperty]
     [NotifyCanExecuteChangedFor(nameof(RunBenchmarkCommand))]
     [NotifyCanExecuteChangedFor(nameof(RunAllSelectedCommand))]
+    [NotifyCanExecuteChangedFor(nameof(CompareSelectedCommand))]
     [NotifyCanExecuteChangedFor(nameof(RunMatrix3DAnalysisCommand))]
     [NotifyCanExecuteChangedFor(nameof(GenerateReportCommand))]
     [NotifyCanExecuteChangedFor(nameof(CancelCommand))]
@@ -96,8 +98,11 @@ public partial class MainViewModel : ViewModelBase
     [ObservableProperty]
     public partial string CacheStatusText { get; set; } = string.Empty;
 
-    /// <summary>Событие обновления данных графика</summary>
+    /// <summary>Событие обновления данных одиночного графика</summary>
     public event EventHandler<BenchmarkResult>? BenchmarkPlotUpdated;
+
+    /// <summary>Событие обновления данных сравнительного графика нескольких алгоритмов</summary>
+    public event EventHandler<List<BenchmarkResult>>? ComparisonPlotUpdated;
 
     partial void OnSelectedAlgorithmChanged(SelectableAlgorithm? value)
     {
@@ -109,18 +114,65 @@ public partial class MainViewModel : ViewModelBase
         var sizes = AlgorithmRegistry.GetRecommendedSizes(algo);
         SizesText = string.Join(", ", sizes);
 
-        CacheStatusText = string.Empty;
+        // Если сейчас выполняется пакетный прогон — не сбиваем текущий рендер
+        if (IsRunning) return;
+
+        // 1. Если для этого алгоритма уже есть результат в памяти — сразу отображаем
+        if (value.LastResult != null)
+        {
+            CurrentBenchmark = value.LastResult;
+            Results.Clear();
+            foreach (var r in value.LastResult.Results) Results.Add(r);
+            RenderChart(value.LastResult);
+            StatusText = $"{value.Name} | c={value.LastResult.FittedCoefficient:E2} | MSE={value.LastResult.MSE:E2}";
+            CacheStatusText = $"Данные готовы ({value.LastResult.Results.Count} точек)";
+            CompareSelectedCommand.NotifyCanExecuteChanged();
+            return;
+        }
+
+        // 2. Если в памяти нет, проверяем и подгружаем из SQLite БД
+        CacheStatusText = "Проверка кэша в БД...";
         _ = Task.Run(async () =>
         {
             try
             {
-                bool hasCached = await _databaseService.HasCachedDataAsync(algo.Name, sizes, algo.MeasureSteps);
-                Avalonia.Threading.Dispatcher.UIThread.Post(() =>
+                var cached = await _databaseService.LoadCachedResultAsync(
+                    algo.Name,
+                    algo.TheoreticalComplexityLabel,
+                    sizes,
+                    algo.TheoreticalComplexity,
+                    algo.MeasureSteps);
+
+                if (cached != null)
                 {
-                    CacheStatusText = hasCached
-                        ? $"Кэш: данные для {sizes.Length} точек уже сохранены в БД"
-                        : "Кэша нет, будет запущен полный бенчмарк";
-                });
+                    Avalonia.Threading.Dispatcher.UIThread.Post(() =>
+                    {
+                        if (SelectedAlgorithm == value && !IsRunning)
+                        {
+                            value.LastResult = cached;
+                            CurrentBenchmark = cached;
+                            Results.Clear();
+                            foreach (var r in cached.Results) Results.Add(r);
+                            RenderChart(cached);
+                            StatusText = $"Загружено из кэша БД: {value.Name} | c={cached.FittedCoefficient:E2} | MSE={cached.MSE:E2}";
+                            CacheStatusText = $"Кэш: загружены данные для {sizes.Length} точек";
+                            CompareSelectedCommand.NotifyCanExecuteChanged();
+                        }
+                    });
+                }
+                else
+                {
+                    Avalonia.Threading.Dispatcher.UIThread.Post(() =>
+                    {
+                        if (SelectedAlgorithm == value && !IsRunning)
+                        {
+                            Results.Clear();
+                            CurrentBenchmark = null;
+                            StatusText = $"Для «{value.Name}» нет сохранённых результатов. Нажмите «Запустить анализ».";
+                            CacheStatusText = "Кэша нет, будет запущен полный бенчмарк";
+                        }
+                    });
+                }
             }
             catch (Exception ex)
             {
@@ -132,6 +184,7 @@ public partial class MainViewModel : ViewModelBase
         });
 
         RunAllSelectedCommand.NotifyCanExecuteChanged();
+        CompareSelectedCommand.NotifyCanExecuteChanged();
     }
 
     // ═══════════════════════════════════════════════════════════════════
@@ -201,6 +254,8 @@ public partial class MainViewModel : ViewModelBase
             }
 
             CurrentBenchmark = benchmarkResult;
+            if (SelectedAlgorithm != null)
+                SelectedAlgorithm.LastResult = benchmarkResult;
 
             foreach (var r in benchmarkResult.Results)
                 Results.Add(r);
@@ -285,6 +340,9 @@ public partial class MainViewModel : ViewModelBase
                         }),
                         _cts.Token);
 
+                    if (wrapper != null)
+                        wrapper.LastResult = result;
+
                     CurrentBenchmark = result;
                     Results.Clear();
                     foreach (var r in result.Results) Results.Add(r);
@@ -308,7 +366,107 @@ public partial class MainViewModel : ViewModelBase
         finally
         {
             IsRunning = false;
+            CompareSelectedCommand.NotifyCanExecuteChanged();
         }
+    }
+
+    // ═══════════════════════════════════════════════════════════════════
+    //  СРАВНЕНИЕ: НАЛОЖЕНИЕ ВЫБРАННЫХ ГРАФИКОВ
+    // ═══════════════════════════════════════════════════════════════════
+
+    private bool CanCompareSelected() => !IsRunning && Algorithms.Count(a => a.IsSelected) >= 2;
+
+    [RelayCommand(CanExecute = nameof(CanCompareSelected))]
+    private async Task CompareSelected()
+    {
+        var selected = Algorithms.Where(a => a.IsSelected).ToList();
+        if (selected.Count < 2)
+        {
+            StatusText = "Выберите хотя бы 2 алгоритма чекбоксами для сравнения";
+            return;
+        }
+
+        // Для тех, у кого нет LastResult в памяти, пробуем подгрузить из БД
+        foreach (var item in selected)
+        {
+            if (item.LastResult == null)
+            {
+                var algo = item.Algorithm;
+                var sizes = AlgorithmRegistry.GetRecommendedSizes(algo);
+                var cached = await _databaseService.LoadCachedResultAsync(
+                    algo.Name,
+                    algo.TheoreticalComplexityLabel,
+                    sizes,
+                    algo.TheoreticalComplexity,
+                    algo.MeasureSteps);
+                if (cached != null)
+                {
+                    item.LastResult = cached;
+                }
+            }
+        }
+
+        var ready = selected.Where(a => a.LastResult != null).ToList();
+        if (ready.Count < 2)
+        {
+            StatusText = $"Для сравнения нужно минимум 2 рассчитанных алгоритма. Готово: {ready.Count} из {selected.Count}. Запустите расчёт очереди.";
+            return;
+        }
+
+        bool hasSteps = ready.Any(a => a.LastResult!.IsStepBased);
+        bool hasTime = ready.Any(a => !a.LastResult!.IsStepBased);
+        if (hasSteps && hasTime)
+        {
+            StatusText = "Нельзя наложить алгоритмы с разными единицами (время и шаги). Выберите только временные или только степенные алгоритмы.";
+            return;
+        }
+
+        var benchmarks = ready.Select(a => a.LastResult!).ToList();
+        RenderComparisonChart(benchmarks);
+        StatusText = $"Режим сравнения: наложено {benchmarks.Count} алгоритмов. Нажмите на любой алгоритм в списке для одиночного вида.";
+    }
+
+    public void RenderComparisonChart(List<BenchmarkResult> benchmarks)
+    {
+        if (benchmarks.Count == 0) return;
+
+        var plt = new ScottPlot.Plot();
+        var colors = new[]
+        {
+            "#2563EB", "#DC2626", "#16A34A", "#9333EA",
+            "#D97706", "#0891B2", "#E11D48", "#4F46E5",
+            "#059669", "#7C3AED", "#C026D3", "#CA8A04"
+        };
+
+        for (int i = 0; i < benchmarks.Count; i++)
+        {
+            var b = benchmarks[i];
+            var results = b.Results;
+            if (results.Count == 0) continue;
+
+            double[] xs = results.Select(r => (double)r.N).ToArray();
+            double[] ys = b.IsStepBased
+                ? results.Select(r => (double)r.StepCount).ToArray()
+                : results.Select(r => r.AverageTimeMs).ToArray();
+
+            var line = plt.Add.ScatterLine(xs, ys);
+            line.LegendText = $"{b.AlgorithmName} [{b.ComplexityLabel}]";
+            line.Color = ScottPlot.Color.FromHex(colors[i % colors.Length]);
+            line.LineWidth = 2.5f;
+        }
+
+        plt.Title($"Сравнение алгоритмов ({benchmarks.Count})");
+        plt.XLabel(benchmarks[0].XAxisTitle);
+        plt.YLabel(benchmarks[0].YAxisTitle);
+        plt.ShowLegend(Alignment.UpperLeft);
+
+        _currentPlot = plt;
+
+        byte[] pngBytes = plt.GetImageBytes(1100, 450, ImageFormat.Png);
+        using var ms = new MemoryStream(pngBytes);
+        ChartImageSource = new Bitmap(ms);
+
+        ComparisonPlotUpdated?.Invoke(this, benchmarks);
     }
 
     private async Task<BenchmarkResult> RunFullBenchmarkAsync(

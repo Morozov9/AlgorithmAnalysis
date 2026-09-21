@@ -43,6 +43,7 @@ public partial class MainWindow : Window
         {
             _vm.ExportRequested -= OnExportRequested;
             _vm.BenchmarkPlotUpdated -= OnBenchmarkPlotUpdated;
+            _vm.ComparisonPlotUpdated -= OnComparisonPlotUpdated;
         }
 
         _vm = DataContext as MainViewModel;
@@ -51,6 +52,7 @@ public partial class MainWindow : Window
         {
             _vm.ExportRequested += OnExportRequested;
             _vm.BenchmarkPlotUpdated += OnBenchmarkPlotUpdated;
+            _vm.ComparisonPlotUpdated += OnComparisonPlotUpdated;
         }
     }
 
@@ -163,6 +165,64 @@ public partial class MainWindow : Window
                 double maxX = xs.Max() * 1.05;
                 plt.Axes.SetLimits(0, maxX, 0, maxY);
             }
+        }
+
+        _currentPlot = plt;
+        RenderPlot();
+    }
+
+    private void OnComparisonPlotUpdated(object? sender, List<BenchmarkResult> benchmarks)
+    {
+        var plt = new ScottPlot.Plot();
+        ApplyTheme(plt);
+
+        if (benchmarks.Count == 0) return;
+
+        var colors = new[]
+        {
+            "#2563EB", "#DC2626", "#16A34A", "#9333EA",
+            "#D97706", "#0891B2", "#E11D48", "#4F46E5",
+            "#059669", "#7C3AED", "#C026D3", "#CA8A04"
+        };
+
+        double globalMaxX = 0;
+        double globalMaxY = 0;
+
+        for (int i = 0; i < benchmarks.Count; i++)
+        {
+            var b = benchmarks[i];
+            var results = b.Results;
+            if (results.Count == 0) continue;
+
+            double[] xs = results.Select(r => (double)r.N).ToArray();
+            double[] ys = b.IsStepBased
+                ? results.Select(r => (double)r.StepCount).ToArray()
+                : results.Select(r => r.AverageTimeMs).ToArray();
+
+            if (xs.Length > 0)
+            {
+                globalMaxX = Math.Max(globalMaxX, xs.Max());
+                globalMaxY = Math.Max(globalMaxY, ys.Max());
+            }
+
+            var line = plt.Add.ScatterLine(xs, ys);
+            line.LegendText = $"{b.AlgorithmName} [{b.ComplexityLabel}]";
+            line.Color = ScottPlot.Color.FromHex(colors[i % colors.Length]);
+            line.LineWidth = 2.5f;
+        }
+
+        plt.Title($"Сравнение алгоритмов ({benchmarks.Count})");
+        plt.XLabel(benchmarks[0].XAxisTitle);
+        plt.YLabel(benchmarks[0].YAxisTitle);
+        plt.ShowLegend(Alignment.UpperLeft);
+
+        if (globalMaxX > 0 && globalMaxY > 0)
+        {
+            plt.Axes.SetLimits(0, globalMaxX * 1.05, 0, globalMaxY * 1.15);
+        }
+        else
+        {
+            plt.Axes.AutoScale();
         }
 
         _currentPlot = plt;

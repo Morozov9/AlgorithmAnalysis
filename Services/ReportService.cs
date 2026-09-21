@@ -170,6 +170,31 @@ public class ReportService
         List<(AbstractAlgorithm Algo, BenchmarkResult Result, string ChartPath)> results,
         string combinedSortChartPath)
     {
+        var palette = new[]
+        {
+            "#2563eb", "#dc2626", "#16a34a", "#9333ea",
+            "#d97706", "#0891b2", "#e11d48", "#4f46e5",
+            "#059669", "#7c3aed", "#c026d3", "#ca8a04",
+            "#0284c7", "#b91c1c", "#15803d", "#6d28d9"
+        };
+
+        var algosDataList = results.Select((r, idx) => new
+        {
+            id = idx,
+            name = r.Algo.Name,
+            group = r.Algo.Group,
+            complexity = r.Algo.TheoreticalComplexityLabel,
+            isStepBased = r.Result.IsStepBased,
+            unit = r.Result.UnitLabel,
+            color = palette[idx % palette.Length],
+            points = r.Result.Results.Select(pt => new
+            {
+                n = pt.N,
+                y = r.Result.IsStepBased ? (double)pt.StepCount : pt.AverageTimeMs
+            }).ToList()
+        }).ToList();
+        string algosJson = System.Text.Json.JsonSerializer.Serialize(algosDataList);
+
         var sb = new StringBuilder();
         sb.AppendLine("<!DOCTYPE html>");
         sb.AppendLine("<html lang=\"ru\">");
@@ -254,6 +279,10 @@ public class ReportService
 
         sb.AppendLine("      <button class=\"nav-btn action-btn active\" id=\"btn-summary\" onclick=\"selectTab('summary')\">");
         sb.AppendLine("        <span>Сводный обзор</span>");
+        sb.AppendLine("      </button>");
+
+        sb.AppendLine("      <button class=\"nav-btn action-btn\" id=\"btn-compare\" onclick=\"selectTab('compare')\">");
+        sb.AppendLine("        <span>Сравнение графиков</span>");
         sb.AppendLine("      </button>");
 
         sb.AppendLine("      <button class=\"nav-btn action-btn print-btn\" onclick=\"showAllAndPrint()\">");
@@ -348,6 +377,49 @@ public class ReportService
 
         sb.AppendLine("      </div>"); // Конец tab-summary
 
+        // 1.5. Вкладка Сравнения и наложения графиков
+        sb.AppendLine("      <div id=\"tab-compare\" class=\"tab-pane\">");
+        sb.AppendLine("        <div class=\"algo-card\">");
+        sb.AppendLine("          <h3>Интерактивное сравнение и наложение графиков</h3>");
+        sb.AppendLine("          <p>Отметьте интересующие алгоритмы чекбоксами для одновременного наложения их экспериментальных кривых на единый график.</p>");
+        sb.AppendLine("");
+        sb.AppendLine("          <div style=\"display:flex; gap:8px; flex-wrap:wrap; margin:16px 0;\">");
+        sb.AppendLine("            <button type=\"button\" class=\"nav-btn\" style=\"width:auto; background:#eff6ff; color:#1d4ed8; border:1px solid #bfdbfe; font-weight:600; padding:6px 14px;\" onclick=\"selectGroupForCompare('Сортировки')\">Все сортировки</button>");
+        sb.AppendLine("            <button type=\"button\" class=\"nav-btn\" style=\"width:auto; background:#eff6ff; color:#1d4ed8; border:1px solid #bfdbfe; font-weight:600; padding:6px 14px;\" onclick=\"selectGroupForCompare('Возведение в степень')\">Все степени</button>");
+        sb.AppendLine("            <button type=\"button\" class=\"nav-btn\" style=\"width:auto; background:#f1f5f9; color:#334155; border:1px solid #cbd5e1; padding:6px 14px;\" onclick=\"selectAllForCompare(false)\">Сбросить выбор</button>");
+        sb.AppendLine("          </div>");
+        sb.AppendLine("");
+        sb.AppendLine("          <div id=\"compareWarning\" style=\"display:none; background:#fffbeb; border:1px solid #fde68a; color:#92400e; padding:10px 14px; border-radius:6px; font-size:13px; margin-bottom:14px;\">Внимание: выбраны алгоритмы с разными единицами измерения (мс и шаги). Рекомендуется сравнивать отдельно время или отдельно шаги.</div>");
+        sb.AppendLine("");
+        sb.AppendLine("          <div style=\"display:grid; grid-template-columns:repeat(auto-fill, minmax(260px, 1fr)); gap:8px; margin-bottom:20px; padding:14px; background:#f8fafc; border:1px solid #e2e8f0; border-radius:8px;\">");
+
+        for (int i = 0; i < results.Count; i++)
+        {
+            var item = results[i];
+            string cColor = palette[i % palette.Length];
+            string encName = WebUtility.HtmlEncode(item.Algo.Name);
+            string encClass = WebUtility.HtmlEncode(item.Algo.TheoreticalComplexityLabel);
+            bool defaultChecked = item.Algo.Group == "Сортировки";
+
+            sb.AppendLine("            <label style=\"display:flex; align-items:center; gap:8px; font-size:13px; cursor:pointer; user-select:none;\">");
+            sb.AppendLine($"              <input type=\"checkbox\" id=\"chk-cmp-{i}\" class=\"cmp-checkbox\" data-id=\"{i}\" data-group=\"{WebUtility.HtmlEncode(item.Algo.Group)}\" {(defaultChecked ? "checked" : "")} onchange=\"onCompareCheckboxChanged()\">");
+            sb.AppendLine($"              <span style=\"width:10px; height:10px; border-radius:50%; background:{cColor}; display:inline-block; flex-shrink:0;\"></span>");
+            sb.AppendLine($"              <span style=\"flex:1; overflow:hidden; text-overflow:ellipsis; white-space:nowrap;\">{encName}</span>");
+            sb.AppendLine($"              <span class=\"badge badge-sm\" style=\"font-size:10px;\">{encClass}</span>");
+            sb.AppendLine("            </label>");
+        }
+
+        sb.AppendLine("          </div>");
+        sb.AppendLine("");
+        sb.AppendLine("          <div id=\"compareSvgContainer\" style=\"background:#ffffff; border:1px solid #e2e8f0; border-radius:8px; padding:16px; position:relative;\">");
+        sb.AppendLine("            <svg id=\"compareSvg\" viewBox=\"0 0 1000 480\" style=\"width:100%; height:auto; display:block;\"></svg>");
+        sb.AppendLine("            <div id=\"compareTooltip\" style=\"position:absolute; display:none; background:rgba(15,23,42,0.92); color:#ffffff; padding:6px 10px; border-radius:6px; font-size:12px; pointer-events:none; z-index:10; box-shadow:0 4px 12px rgba(0,0,0,0.15);\"></div>");
+        sb.AppendLine("          </div>");
+        sb.AppendLine("");
+        sb.AppendLine("          <div id=\"compareLegend\" style=\"display:flex; flex-wrap:wrap; gap:12px; margin-top:16px;\"></div>");
+        sb.AppendLine("        </div>");
+        sb.AppendLine("      </div>"); // Конец tab-compare
+
         // 2. Вкладки для каждого отдельного алгоритма
         for (int i = 0; i < results.Count; i++)
         {
@@ -400,8 +472,10 @@ public class ReportService
         sb.AppendLine("    </div>"); // Конец main-content
         sb.AppendLine("  </div>"); // Конец app-layout
 
-        // Скрипт переключения вкладок (Vanilla JS, 100% офлайн)
+        // Скрипт переключения вкладок и интерактивного наложения графиков (Vanilla JS, 100% офлайн)
         sb.AppendLine("  <script>");
+        sb.AppendLine($"    const algosData = {algosJson};");
+        sb.AppendLine("    let activeCompareIds = new Set(algosData.filter(a => a.group === 'Сортировки').map(a => a.id));");
         sb.AppendLine("    let showAllMode = false;");
         sb.AppendLine("");
         sb.AppendLine("    function selectTab(tabId) {");
@@ -418,6 +492,8 @@ public class ReportService
         sb.AppendLine("      const activeBtn = document.getElementById('btn-' + tabId);");
         sb.AppendLine("      if (activeBtn) activeBtn.classList.add('active');");
         sb.AppendLine("");
+        sb.AppendLine("      if (tabId === 'compare') { renderCompareChart(); }");
+        sb.AppendLine("");
         sb.AppendLine("      window.scrollTo({ top: 0, behavior: 'smooth' });");
         sb.AppendLine("    }");
         sb.AppendLine("");
@@ -428,6 +504,7 @@ public class ReportService
         sb.AppendLine("        document.querySelectorAll('.tab-pane').forEach(el => el.classList.add('active'));");
         sb.AppendLine("        document.querySelectorAll('.nav-btn').forEach(el => el.classList.remove('active'));");
         sb.AppendLine("        if (btn) { btn.classList.add('active'); btn.innerHTML = '<span>Скрыть остальные</span>'; }");
+        sb.AppendLine("        renderCompareChart();");
         sb.AppendLine("      } else {");
         sb.AppendLine("        selectTab('summary');");
         sb.AppendLine("      }");
@@ -435,6 +512,7 @@ public class ReportService
         sb.AppendLine("");
         sb.AppendLine("    function showAllAndPrint() {");
         sb.AppendLine("      document.querySelectorAll('.tab-pane').forEach(el => el.classList.add('active'));");
+        sb.AppendLine("      renderCompareChart();");
         sb.AppendLine("      setTimeout(() => { window.print(); }, 150);");
         sb.AppendLine("    }");
         sb.AppendLine("");
@@ -445,6 +523,134 @@ public class ReportService
         sb.AppendLine("        btn.style.display = text.includes(q) ? 'flex' : 'none';");
         sb.AppendLine("      });");
         sb.AppendLine("    }");
+        sb.AppendLine("");
+        sb.AppendLine("    function onCompareCheckboxChanged() {");
+        sb.AppendLine("      activeCompareIds.clear();");
+        sb.AppendLine("      document.querySelectorAll('.cmp-checkbox:checked').forEach(chk => {");
+        sb.AppendLine("        activeCompareIds.add(parseInt(chk.dataset.id));");
+        sb.AppendLine("      });");
+        sb.AppendLine("      renderCompareChart();");
+        sb.AppendLine("    }");
+        sb.AppendLine("");
+        sb.AppendLine("    function selectGroupForCompare(groupName) {");
+        sb.AppendLine("      document.querySelectorAll('.cmp-checkbox').forEach(chk => {");
+        sb.AppendLine("        chk.checked = chk.dataset.group === groupName;");
+        sb.AppendLine("      });");
+        sb.AppendLine("      onCompareCheckboxChanged();");
+        sb.AppendLine("    }");
+        sb.AppendLine("");
+        sb.AppendLine("    function selectAllForCompare(checked) {");
+        sb.AppendLine("      document.querySelectorAll('.cmp-checkbox').forEach(chk => {");
+        sb.AppendLine("        chk.checked = checked;");
+        sb.AppendLine("      });");
+        sb.AppendLine("      onCompareCheckboxChanged();");
+        sb.AppendLine("    }");
+        sb.AppendLine("");
+        sb.AppendLine("    function renderCompareChart() {");
+        sb.AppendLine("      const svg = document.getElementById('compareSvg');");
+        sb.AppendLine("      const legend = document.getElementById('compareLegend');");
+        sb.AppendLine("      const warning = document.getElementById('compareWarning');");
+        sb.AppendLine("      if (!svg) return;");
+        sb.AppendLine("");
+        sb.AppendLine("      const selected = algosData.filter(a => activeCompareIds.has(a.id));");
+        sb.AppendLine("      const hasSteps = selected.some(a => a.isStepBased);");
+        sb.AppendLine("      const hasTime = selected.some(a => !a.isStepBased);");
+        sb.AppendLine("      if (warning) warning.style.display = (hasSteps && hasTime) ? 'block' : 'none';");
+        sb.AppendLine("");
+        sb.AppendLine("      if (selected.length === 0) {");
+        sb.AppendLine("        svg.innerHTML = '<text x=\"500\" y=\"240\" text-anchor=\"middle\" fill=\"#64748b\" font-size=\"15\">Выберите хотя бы один алгоритм чекбоксами выше</text>';");
+        sb.AppendLine("        if (legend) legend.innerHTML = '';");
+        sb.AppendLine("        return;");
+        sb.AppendLine("      }");
+        sb.AppendLine("");
+        sb.AppendLine("      let maxX = 0;");
+        sb.AppendLine("      let maxY = 0;");
+        sb.AppendLine("      selected.forEach(a => {");
+        sb.AppendLine("        a.points.forEach(p => {");
+        sb.AppendLine("          if (p.n > maxX) maxX = p.n;");
+        sb.AppendLine("          if (p.y > maxY) maxY = p.y;");
+        sb.AppendLine("        });");
+        sb.AppendLine("      });");
+        sb.AppendLine("      if (maxX <= 0) maxX = 100;");
+        sb.AppendLine("      if (maxY <= 0) maxY = 1;");
+        sb.AppendLine("");
+        sb.AppendLine("      const padLeft = 80;");
+        sb.AppendLine("      const padRight = 40;");
+        sb.AppendLine("      const padTop = 30;");
+        sb.AppendLine("      const padBottom = 50;");
+        sb.AppendLine("      const pw = 1000 - padLeft - padRight;");
+        sb.AppendLine("      const ph = 480 - padTop - padBottom;");
+        sb.AppendLine("      const mapX = (x) => padLeft + (x / maxX) * pw;");
+        sb.AppendLine("      const mapY = (y) => padTop + ph - (y / maxY) * ph;");
+        sb.AppendLine("");
+        sb.AppendLine("      let s = '';");
+        sb.AppendLine("      const gridSteps = 5;");
+        sb.AppendLine("      for (let i = 0; i <= gridSteps; i++) {");
+        sb.AppendLine("        const yVal = (maxY / gridSteps) * i;");
+        sb.AppendLine("        const py = mapY(yVal);");
+        sb.AppendLine("        s += `<line x1=\"${padLeft}\" y1=\"${py}\" x2=\"${padLeft + pw}\" y2=\"${py}\" stroke=\"#e2e8f0\" stroke-width=\"1\" stroke-dasharray=\"3 3\"/>`;");
+        sb.AppendLine("        const yLabel = yVal < 0.1 && yVal > 0 ? yVal.toExponential(1) : (yVal >= 10 ? yVal.toFixed(0) : yVal.toFixed(2));");
+        sb.AppendLine("        s += `<text x=\"${padLeft - 10}\" y=\"${py + 4}\" text-anchor=\"end\" fill=\"#64748b\" font-size=\"11\">${yLabel}</text>`;");
+        sb.AppendLine("      }");
+        sb.AppendLine("");
+        sb.AppendLine("      for (let i = 0; i <= gridSteps; i++) {");
+        sb.AppendLine("        const xVal = (maxX / gridSteps) * i;");
+        sb.AppendLine("        const px = mapX(xVal);");
+        sb.AppendLine("        s += `<line x1=\"${px}\" y1=\"${padTop}\" x2=\"${px}\" y2=\"${padTop + ph}\" stroke=\"#e2e8f0\" stroke-width=\"1\" stroke-dasharray=\"3 3\"/>`;");
+        sb.AppendLine("        s += `<text x=\"${px}\" y=\"${padTop + ph + 20}\" text-anchor=\"middle\" fill=\"#64748b\" font-size=\"11\">${Math.round(xVal)}</text>`;");
+        sb.AppendLine("      }");
+        sb.AppendLine("");
+        sb.AppendLine("      s += `<line x1=\"${padLeft}\" y1=\"${padTop}\" x2=\"${padLeft}\" y2=\"${padTop + ph}\" stroke=\"#94a3b8\" stroke-width=\"1.5\"/>`;");
+        sb.AppendLine("      s += `<line x1=\"${padLeft}\" y1=\"${padTop + ph}\" x2=\"${padLeft + pw}\" y2=\"${padTop + ph}\" stroke=\"#94a3b8\" stroke-width=\"1.5\"/>`;");
+        sb.AppendLine("");
+        sb.AppendLine("      const yAxisTitle = hasSteps ? (hasTime ? 'Значение (мс / шаги)' : 'Число операций (шагов)') : 'Время выполнения (мс)';");
+        sb.AppendLine("      s += `<text x=\"${padLeft + pw / 2}\" y=\"${padTop + ph + 42}\" text-anchor=\"middle\" fill=\"#334155\" font-size=\"12\" font-weight=\"600\">Размер входных данных n</text>`;");
+        sb.AppendLine("      s += `<text x=\"20\" y=\"${padTop + ph / 2}\" text-anchor=\"middle\" transform=\"rotate(-90 20 ${padTop + ph / 2})\" fill=\"#334155\" font-size=\"12\" font-weight=\"600\">${yAxisTitle}</text>`;");
+        sb.AppendLine("");
+        sb.AppendLine("      selected.forEach(a => {");
+        sb.AppendLine("        if (a.points.length === 0) return;");
+        sb.AppendLine("        const ptsStr = a.points.map(p => `${mapX(p.n)},${mapY(p.y)}`).join(' ');");
+        sb.AppendLine("        s += `<polyline points=\"${ptsStr}\" fill=\"none\" stroke=\"${a.color}\" stroke-width=\"2.5\" stroke-linejoin=\"round\"/>`;");
+        sb.AppendLine("        a.points.forEach(p => {");
+        sb.AppendLine("          const cx = mapX(p.n);");
+        sb.AppendLine("          const cy = mapY(p.y);");
+        sb.AppendLine("          const encA = a.name.replace(/\"/g, '&quot;');");
+        sb.AppendLine("          s += `<circle cx=\"${cx}\" cy=\"${cy}\" r=\"3.5\" fill=\"${a.color}\" stroke=\"#ffffff\" stroke-width=\"1\" style=\"cursor:pointer;\" onmouseenter=\"showCmpTooltip(event, '${encA}', ${p.n}, ${p.y}, '${a.unit}')\" onmouseleave=\"hideCmpTooltip()\"/>`;");
+        sb.AppendLine("        });");
+        sb.AppendLine("      });");
+        sb.AppendLine("");
+        sb.AppendLine("      svg.innerHTML = s;");
+        sb.AppendLine("");
+        sb.AppendLine("      if (legend) {");
+        sb.AppendLine("        legend.innerHTML = selected.map(a => `");
+        sb.AppendLine("          <div style=\"display:flex; align-items:center; gap:6px; font-size:12px; color:#334155;\">");
+        sb.AppendLine("            <span style=\"width:12px; height:12px; border-radius:3px; background:${a.color}; display:inline-block;\"></span>");
+        sb.AppendLine("            <b>${a.name}</b>");
+        sb.AppendLine("            <span class=\"badge badge-sm\" style=\"font-size:10px;\">${a.complexity}</span>");
+        sb.AppendLine("          </div>");
+        sb.AppendLine("        `).join('');");
+        sb.AppendLine("      }");
+        sb.AppendLine("    }");
+        sb.AppendLine("");
+        sb.AppendLine("    function showCmpTooltip(e, name, n, y, unit) {");
+        sb.AppendLine("      const tt = document.getElementById('compareTooltip');");
+        sb.AppendLine("      if (!tt) return;");
+        sb.AppendLine("      const container = document.getElementById('compareSvgContainer');");
+        sb.AppendLine("      const rect = container ? container.getBoundingClientRect() : { left: 0, top: 0 };");
+        sb.AppendLine("      const yFormatted = y >= 1 ? y.toFixed(2) : y.toFixed(4);");
+        sb.AppendLine("      tt.innerHTML = `<b>${name}</b><br>n = ${n}<br>Значение = ${yFormatted} ${unit}`;");
+        sb.AppendLine("      tt.style.left = (e.clientX - rect.left + 12) + 'px';");
+        sb.AppendLine("      tt.style.top = (e.clientY - rect.top - 20) + 'px';");
+        sb.AppendLine("      tt.style.display = 'block';");
+        sb.AppendLine("    }");
+        sb.AppendLine("");
+        sb.AppendLine("    function hideCmpTooltip() {");
+        sb.AppendLine("      const tt = document.getElementById('compareTooltip');");
+        sb.AppendLine("      if (tt) tt.style.display = 'none';");
+        sb.AppendLine("    }");
+        sb.AppendLine("");
+        sb.AppendLine("    // Инициализация сравнительного графика");
+        sb.AppendLine("    renderCompareChart();");
         sb.AppendLine("  </script>");
 
         sb.AppendLine("</body>");

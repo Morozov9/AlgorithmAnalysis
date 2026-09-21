@@ -14,6 +14,12 @@ public partial class SelectableAlgorithm : ObservableObject
     [ObservableProperty]
     public partial bool IsSelected { get; set; }
 
+    [ObservableProperty]
+    [NotifyPropertyChangedFor(nameof(HasResult))]
+    public partial BenchmarkResult? LastResult { get; set; }
+
+    public bool HasResult => LastResult != null;
+
     /// <summary>Событие для родительской VM: изменение выбора</summary>
     public event EventHandler? SelectionChanged;
 
