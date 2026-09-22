@@ -35,69 +35,81 @@ public class BenchmarkService
         int maxN = sizes.Max();
         var random = new Random(RandomSeed);
 
-        var benchmarkResult = await Task.Run(() =>
+        algorithm.CancellationToken = cancellationToken;
+        BenchmarkResult benchmarkResult;
+        try
         {
-            // 1. Генерируем мастер-данные максимального размера (один раз)
-            algorithm.GenerateMasterData(maxN, random);
-            cancellationToken.ThrowIfCancellationRequested();
-
-            // 2. Прогрев JIT (Warmup), чтобы первый замер не включал JIT-компиляцию
-            int warmupN = Math.Min(10, maxN);
-            algorithm.PrepareData(warmupN);
-            algorithm.Execute();
-            algorithm.Execute();
-            algorithm.Execute();
-
-            var stopwatch = new Stopwatch();
-            int totalExperiments = sizes.Length;
-
-            // 3. Серия замеров для каждого размера n
-            for (int i = 0; i < sizes.Length; i++)
+            benchmarkResult = await Task.Run(() =>
             {
+                // 1. Генерируем мастер-данные максимального размера (один раз)
+                algorithm.GenerateMasterData(maxN, random);
                 cancellationToken.ThrowIfCancellationRequested();
 
-                int n = sizes[i];
-                var runTimes = new double[RunsPerSize];
-                long stepCount = 0;
+                // 2. Прогрев JIT (Warmup), чтобы первый замер не включал JIT-компиляцию
+                cancellationToken.ThrowIfCancellationRequested();
+                int warmupN = Math.Min(10, maxN);
+                algorithm.PrepareData(warmupN);
+                algorithm.Execute();
+                algorithm.Execute();
+                algorithm.Execute();
 
-                for (int run = 0; run < RunsPerSize; run++)
+                var stopwatch = new Stopwatch();
+                int totalExperiments = sizes.Length;
+
+                // 3. Серия замеров для каждого размера n
+                for (int i = 0; i < sizes.Length; i++)
                 {
-                    // Подготовка данных (копирование среза) — строго до запуска секундомера
-                    algorithm.PrepareData(n);
+                    cancellationToken.ThrowIfCancellationRequested();
 
-                    // Точный замер чистого выполнения алгоритма без Task.Run оверхеда
-                    stopwatch.Restart();
-                    algorithm.Execute();
-                    stopwatch.Stop();
+                    int n = sizes[i];
+                    var runTimes = new double[RunsPerSize];
+                    long stepCount = 0;
 
-                    runTimes[run] = stopwatch.Elapsed.TotalMilliseconds;
-
-                    if (algorithm is PowerAlgorithm powerAlgo)
+                    for (int run = 0; run < RunsPerSize; run++)
                     {
-                        stepCount = powerAlgo.LastStepCount;
+                        cancellationToken.ThrowIfCancellationRequested();
+
+                        // Подготовка данных (копирование среза) — строго до запуска секундомера
+                        algorithm.PrepareData(n);
+
+                        // Точный замер чистого выполнения алгоритма без Task.Run оверхеда
+                        stopwatch.Restart();
+                        algorithm.Execute();
+                        stopwatch.Stop();
+
+                        runTimes[run] = stopwatch.Elapsed.TotalMilliseconds;
+
+                        if (algorithm is PowerAlgorithm powerAlgo)
+                        {
+                            stepCount = powerAlgo.LastStepCount;
+                        }
                     }
+
+                    // Среднее время по 5 запускам (согласно заданию лабы)
+                    double avgTime = runTimes.Average();
+
+                    result.Results.Add(new ExperimentResult
+                    {
+                        N = n,
+                        AverageTimeMs = avgTime,
+                        StepCount = stepCount,
+                        AllRunsMs = runTimes
+                    });
+
+                    // Отчёт о прогрессе
+                    progress?.Invoke((double)(i + 1) / totalExperiments);
                 }
 
-                // Среднее время по 5 запускам (согласно заданию лабы)
-                double avgTime = runTimes.Average();
+                // 4. Аппроксимация МНК + MSE
+                FitTheoreticalCurve(algorithm, result);
 
-                result.Results.Add(new ExperimentResult
-                {
-                    N = n,
-                    AverageTimeMs = avgTime,
-                    StepCount = stepCount,
-                    AllRunsMs = runTimes
-                });
-
-                // Отчёт о прогрессе
-                progress?.Invoke((double)(i + 1) / totalExperiments);
-            }
-
-            // 4. Аппроксимация МНК + MSE
-            FitTheoreticalCurve(algorithm, result);
-
-            return result;
-        }, cancellationToken);
+                return result;
+            }, cancellationToken);
+        }
+        finally
+        {
+            algorithm.CancellationToken = CancellationToken.None;
+        }
 
         // 5. Сохраняем результаты в БД (fire-and-forget, не блокирует UI)
         _ = Task.Run(async () =>

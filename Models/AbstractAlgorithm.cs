@@ -75,5 +75,15 @@ public abstract class AbstractAlgorithm
     /// </summary>
     public abstract void Execute();
 
+    /// <summary>Токен отмены для прерывания долгих вычислений</summary>
+    public CancellationToken CancellationToken { get; set; } = CancellationToken.None;
+
+    /// <summary>
+    /// Проверяет запрос на отмену операции.
+    /// Рекомендуется вызывать в циклах трудоёмких алгоритмов.
+    /// </summary>
+    [System.Runtime.CompilerServices.MethodImpl(System.Runtime.CompilerServices.MethodImplOptions.AggressiveInlining)]
+    protected void ThrowIfCancellationRequested() => CancellationToken.ThrowIfCancellationRequested();
+
     public override string ToString() => Name;
 }

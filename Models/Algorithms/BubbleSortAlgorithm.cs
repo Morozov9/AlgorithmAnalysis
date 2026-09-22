@@ -21,6 +21,7 @@ public class BubbleSortAlgorithm : VectorAlgorithm
 
         for (int i = 0; i < n - 1; i++)
         {
+            if ((i & 0x7F) == 0) ThrowIfCancellationRequested();
             for (int j = 0; j < n - 1 - i; j++)
             {
                 if (_workingData[j] > _workingData[j + 1])

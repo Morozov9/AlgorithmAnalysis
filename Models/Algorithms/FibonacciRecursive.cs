@@ -1,4 +1,4 @@
-﻿namespace AlgorithmAnalysis.Models.Algorithms;
+namespace AlgorithmAnalysis.Models.Algorithms;
 
 /// <summary>
 /// Рекурсивное вычисление числа Фибоначчи F(n).
@@ -43,6 +43,11 @@ public class FibonacciRecursive : AbstractAlgorithm
     private long Fib(int n)
     {
         LastStepCount++;   // считаем каждый рекурсивный вызов
+        if ((LastStepCount & 0x3FF) == 0)
+        {
+            ThrowIfCancellationRequested();
+        }
+
         if (n <= 0) return 0;
         if (n == 1) return 1;
         return Fib(n - 1) + Fib(n - 2);

@@ -20,6 +20,7 @@ public class MergeSortAlgorithm : VectorAlgorithm
     private void MergeSort(int[] arr, int left, int right)
     {
         if (left >= right) return;
+        ThrowIfCancellationRequested();
 
         int mid = (left + right) / 2;
 

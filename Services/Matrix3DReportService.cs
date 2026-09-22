@@ -58,41 +58,51 @@ public class Matrix3DReportService
         var stopwatch = new Stopwatch();
 
         // 2. Серия замеров по сетке (n, m)
-        await Task.Run(() =>
+        matrixAlgo.CancellationToken = cancellationToken;
+        try
         {
-            for (int mIdx = 0; mIdx < mSizes.Length; mIdx++)
+            await Task.Run(() =>
             {
-                int m = mSizes[mIdx];
-
-                for (int nIdx = 0; nIdx < nSizes.Length; nIdx++)
+                for (int mIdx = 0; mIdx < mSizes.Length; mIdx++)
                 {
-                    cancellationToken.ThrowIfCancellationRequested();
+                    int m = mSizes[mIdx];
 
-                    int n = nSizes[nIdx];
-                    int k = n; // B(m x n), результат C(n x n)
-
-                    double totalMs = 0;
-
-                    for (int run = 0; run < _runsPerPoint; run++)
+                    for (int nIdx = 0; nIdx < nSizes.Length; nIdx++)
                     {
-                        matrixAlgo.PrepareData(n, m, k);
+                        cancellationToken.ThrowIfCancellationRequested();
 
-                        stopwatch.Restart();
-                        matrixAlgo.Execute();
-                        stopwatch.Stop();
+                        int n = nSizes[nIdx];
+                        int k = n; // B(m x n), результат C(n x n)
 
-                        totalMs += stopwatch.Elapsed.TotalMilliseconds;
+                        double totalMs = 0;
+
+                        for (int run = 0; run < _runsPerPoint; run++)
+                        {
+                            cancellationToken.ThrowIfCancellationRequested();
+
+                            matrixAlgo.PrepareData(n, m, k);
+
+                            stopwatch.Restart();
+                            matrixAlgo.Execute();
+                            stopwatch.Stop();
+
+                            totalMs += stopwatch.Elapsed.TotalMilliseconds;
+                        }
+
+                        double avgMs = totalMs / _runsPerPoint;
+                        zExp[mIdx][nIdx] = avgMs;
+
+                        completed++;
+                        double frac = 0.05 + 0.85 * ((double)completed / totalPoints);
+                        progress?.Invoke($"Замер сетки: n={n}, m={m} ({completed}/{totalPoints})", frac);
                     }
-
-                    double avgMs = totalMs / _runsPerPoint;
-                    zExp[mIdx][nIdx] = avgMs;
-
-                    completed++;
-                    double frac = 0.05 + 0.85 * ((double)completed / totalPoints);
-                    progress?.Invoke($"Замер сетки: n={n}, m={m} ({completed}/{totalPoints})", frac);
                 }
-            }
-        }, cancellationToken);
+            }, cancellationToken);
+        }
+        finally
+        {
+            matrixAlgo.CancellationToken = CancellationToken.None;
+        }
 
         // 3. Аппроксимация МНК для теоретической модели T = c · (n² · m)
         progress?.Invoke("Расчёт теоретической аппроксимации МНК...", 0.92);

@@ -22,10 +22,11 @@ public class QuickSortAlgorithm : VectorAlgorithm
         }
     }
 
-    private static void QuickSort(int[] arr, int low, int high)
+    private void QuickSort(int[] arr, int low, int high)
     {
         if (low < high)
         {
+            ThrowIfCancellationRequested();
             int p = Partition(arr, low, high);
             QuickSort(arr, low, p);
             QuickSort(arr, p + 1, high);

@@ -20,6 +20,7 @@ public class MatrixMultiplication : MatrixAlgorithm
 
         for (int i = 0; i < n; i++)
         {
+            ThrowIfCancellationRequested();
             for (int j = 0; j < k; j++)
             {
                 double sum = 0;

@@ -21,6 +21,8 @@ public class PolynomialNaive : VectorAlgorithm
 
         for (int k = 0; k < _workingData.Length; k++)
         {
+            if ((k & 0x7F) == 0) ThrowIfCancellationRequested();
+
             // Считаем x^k вложенным циклом
             double power = 1.0;
             for (int j = 0; j < k; j++)

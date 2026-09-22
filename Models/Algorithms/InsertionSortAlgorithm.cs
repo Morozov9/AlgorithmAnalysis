@@ -20,6 +20,7 @@ public class InsertionSortAlgorithm : VectorAlgorithm
 
         for (int i = 1; i < n; i++)
         {
+            if ((i & 0xFF) == 0) ThrowIfCancellationRequested();
             int key = _workingData[i];
             int j = i - 1;
 

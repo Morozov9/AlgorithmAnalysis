@@ -353,6 +353,10 @@ public partial class MainViewModel : ViewModelBase
 
                     StatusText = $"[{done}/{total}] {algo.Name} | c={result.FittedCoefficient:E2} | MSE={result.MSE:E2}";
                 }
+                catch (OperationCanceledException)
+                {
+                    throw;
+                }
                 catch (Exception ex)
                 {
                     StatusText = $"Ошибка [{done}/{total}] {algo.Name}: {ex.Message}";
@@ -364,7 +368,7 @@ public partial class MainViewModel : ViewModelBase
         }
         catch (OperationCanceledException)
         {
-            StatusText = $"Отменено на {done}/{total}";
+            StatusText = $"Очередь отменена (обработано {done - 1}/{total})";
         }
         finally
         {

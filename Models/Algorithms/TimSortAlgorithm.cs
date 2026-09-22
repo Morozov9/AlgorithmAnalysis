@@ -25,12 +25,14 @@ public class TimSortAlgorithm : VectorAlgorithm
         // 1. Сортируем отдельные подмассивы размером MinRun сортировкой вставками
         for (int i = 0; i < n; i += MinRun)
         {
+            ThrowIfCancellationRequested();
             InsertionSort(_workingData, i, Math.Min(i + MinRun - 1, n - 1));
         }
 
         // 2. Итеративно сливаем отсортированные блоки, начиная с MinRun
         for (int size = MinRun; size < n; size *= 2)
         {
+            ThrowIfCancellationRequested();
             for (int left = 0; left < n; left += 2 * size)
             {
                 int mid = left + size - 1;

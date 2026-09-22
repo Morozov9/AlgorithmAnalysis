@@ -79,7 +79,7 @@ sealed class Program
         Console.WriteLine($"  3D-график создан: {Path.GetFileName(matrix3DHtml)} ({new FileInfo(matrix3DHtml).Length / 1024} КБ)");
 
         // 3. Тест отчёта ReportService
-        Console.WriteLine("\n[3/3] Проверка генератора отчёта (ReportService)...");
+        Console.WriteLine("\n[3/4] Проверка генератора отчёта (ReportService)...");
         var reportService = new ReportService();
         string reportHtml = reportService.GenerateFullReportAsync((msg, p) =>
         {
@@ -95,6 +95,38 @@ sealed class Program
             throw new Exception("report.html не содержит интерактивной вёрстки или поддержки печати");
 
         Console.WriteLine($"  Интерактивный отчёт создан: {reportHtml}");
+
+        // 4. Тест мгновенной отмены (CancellationToken)
+        Console.WriteLine("\n[4/4] Проверка мгновенной отмены (CancellationToken)...");
+        var matrixAlgo = new MatrixMultiplication();
+        using var cts = new System.Threading.CancellationTokenSource();
+        var cancelStopwatch = System.Diagnostics.Stopwatch.StartNew();
+
+        // Запускаем тяжёлое умножение матриц 800x800
+        var benchmarkTask = benchService.RunBenchmarkAsync(matrixAlgo, [800], cancellationToken: cts.Token);
+
+        // Даём алгоритму войти в цикл расчёта и отменяем через 50 мс
+        System.Threading.Thread.Sleep(50);
+        cts.Cancel();
+
+        bool wasCanceled = false;
+        try
+        {
+            benchmarkTask.GetAwaiter().GetResult();
+        }
+        catch (OperationCanceledException)
+        {
+            wasCanceled = true;
+        }
+
+        cancelStopwatch.Stop();
+
+        if (!wasCanceled)
+            throw new Exception("Бенчмарк не выбросил OperationCanceledException при отмене");
+        if (cancelStopwatch.ElapsedMilliseconds > 1500)
+            throw new Exception($"Отмена выполнялась слишком долго: {cancelStopwatch.ElapsedMilliseconds} мс (ожидалось < 1500 мс)");
+
+        Console.WriteLine($"  Отмена сработала мгновенно за {cancelStopwatch.ElapsedMilliseconds} мс");
         Console.WriteLine("\n=== ВСЕ ТЕСТЫ УСПЕШНО ПРОЙДЕНЫ ===");
     }
 
