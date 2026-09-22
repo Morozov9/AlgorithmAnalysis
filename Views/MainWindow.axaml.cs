@@ -186,7 +186,7 @@ public partial class MainWindow : Window
         };
 
         double globalMaxX = 0;
-        double globalMaxY = 0;
+        var allYValues = new List<double>();
 
         for (int i = 0; i < benchmarks.Count; i++)
         {
@@ -202,7 +202,8 @@ public partial class MainWindow : Window
             if (xs.Length > 0)
             {
                 globalMaxX = Math.Max(globalMaxX, xs.Max());
-                globalMaxY = Math.Max(globalMaxY, ys.Max());
+                // Собираем все Y-значения для расчёта p99 (исключаем NaN и Inf)
+                allYValues.AddRange(ys.Where(y => !double.IsNaN(y) && !double.IsInfinity(y) && y >= 0));
             }
 
             var line = plt.Add.ScatterLine(xs, ys);
@@ -216,9 +217,21 @@ public partial class MainWindow : Window
         plt.YLabel(benchmarks[0].YAxisTitle);
         plt.ShowLegend(Alignment.UpperLeft);
 
-        if (globalMaxX > 0 && globalMaxY > 0)
+        if (globalMaxX > 0 && allYValues.Count > 0)
         {
-            plt.Axes.SetLimits(0, globalMaxX * 1.05, 0, globalMaxY * 1.15);
+            // p99 по всем значениям всех алгоритмов — отсекаем выбросы (JIT-спайки и т.п.)
+            var sortedY = allYValues.OrderBy(y => y).ToArray();
+            int idx99 = Math.Min((int)(sortedY.Length * 0.99), sortedY.Length - 1);
+            double p99 = sortedY[idx99];
+            double maxY = p99 * 1.2;
+
+            // Если p99 слишком занижает реальный максимум, берём компромисс
+            double actualMax = sortedY[^1];
+            if (maxY < actualMax * 0.3) maxY = actualMax * 0.5;
+            if (maxY <= 0) maxY = 1;
+
+            // Y строго от 0 — время/шаги не могут быть отрицательными
+            plt.Axes.SetLimits(0, globalMaxX * 1.05, 0, maxY);
         }
         else
         {
@@ -262,46 +275,36 @@ public partial class MainWindow : Window
     {
         if (_currentPlot == null) return;
 
+        // e.Delta.Y > 0 — колёсико вверх = приближение (span уменьшается)
+        // e.Delta.Y < 0 — колёсико вниз = отдаление (span увеличивается)
         double factor = e.Delta.Y > 0 ? 1.25 : 0.8;
+
         var limits = _currentPlot.Axes.GetLimits();
         double spanX = limits.Right - limits.Left;
-        double spanY = limits.Top - limits.Bottom;
+        double spanY = limits.Top  - limits.Bottom;
 
-        if (factor < 1.0 && (spanX > 50_000 || spanY > 10_000))
-        {
-            return;
-        }
+        double newSpanX = spanX / factor;
+        double newSpanY = spanY / factor;
 
+        // Ограничиваем только слишком глубокое приближение (защита от float overflow)
+        if (newSpanX < 1e-6 || newSpanY < 1e-12) return;
+
+        // Зум относительно позиции курсора
         var pos = e.GetPosition(ChartContainer);
         int w = Math.Max(100, (int)ChartContainer.Bounds.Width);
         int h = Math.Max(100, (int)ChartContainer.Bounds.Height);
 
         double fracX = Math.Clamp(pos.X / w, 0.0, 1.0);
-        double fracY = Math.Clamp(1.0 - (pos.Y / h), 0.0, 1.0);
+        double fracY = Math.Clamp(1.0 - pos.Y / h, 0.0, 1.0);
 
-        double mouseX = limits.Left + fracX * spanX;
-        double mouseY = limits.Bottom + fracY * spanY;
+        // Точка графика под курсором — она должна остаться на месте при зуме
+        double pivotX = limits.Left   + fracX * spanX;
+        double pivotY = limits.Bottom + fracY * spanY;
 
-        double newSpanX = spanX / factor;
-        double newSpanY = spanY / factor;
-
-        double newLeft = mouseX - fracX * newSpanX;
-        double newRight = newLeft + newSpanX;
-        double newBottom = mouseY - fracY * newSpanY;
-        double newTop = newBottom + newSpanY;
-
-        if (newLeft < -spanX * 0.2)
-        {
-            double corr = -spanX * 0.2 - newLeft;
-            newLeft += corr;
-            newRight += corr;
-        }
-        if (newBottom < -spanY * 0.2)
-        {
-            double corr = -spanY * 0.2 - newBottom;
-            newBottom += corr;
-            newTop += corr;
-        }
+        double newLeft   = pivotX - fracX * newSpanX;
+        double newRight  = newLeft + newSpanX;
+        double newBottom = pivotY - fracY * newSpanY;
+        double newTop    = newBottom + newSpanY;
 
         _currentPlot.Axes.SetLimits(newLeft, newRight, newBottom, newTop);
         RenderPlot();

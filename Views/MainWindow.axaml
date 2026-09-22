@@ -187,7 +187,7 @@
 
 		<!-- ══════════ ПРАВАЯ ПАНЕЛЬ: результаты ══════════ -->
 		<Border Grid.Column="2" BorderBrush="#DDDDDD" BorderThickness="1,0,0,0" Padding="10">
-			<Grid RowDefinitions="Auto,*,Auto,Auto,Auto">
+			<Grid RowDefinitions="Auto,*,Auto,Auto,Auto,Auto,Auto">
 
 				<TextBlock Grid.Row="0"
                            Text="Результаты"
@@ -239,6 +239,30 @@
                         Foreground="White"
                         FontWeight="Bold"
                         Padding="10"/>
+
+				<!-- Разделитель -->
+				<Separator Grid.Row="5" Margin="0,10,0,0"/>
+
+				<!-- Очистка БД -->
+				<StackPanel Grid.Row="6" Spacing="6" Margin="0,6,0,0">
+					<Button Content="Очистить данные алгоритма из БД"
+                            Command="{Binding ClearAlgorithmDbCommand}"
+                            HorizontalAlignment="Stretch"
+                            HorizontalContentAlignment="Center"
+                            Background="#E65100"
+                            Foreground="White"
+                            FontSize="12"
+                            Padding="8"/>
+					<Button Content="Очистить всю БД"
+                            Command="{Binding ClearAllDbCommand}"
+                            HorizontalAlignment="Stretch"
+                            HorizontalContentAlignment="Center"
+                            Background="#B71C1C"
+                            Foreground="White"
+                            FontSize="12"
+                            FontWeight="Bold"
+                            Padding="8"/>
+				</StackPanel>
 
 			</Grid>
 		</Border>

@@ -222,6 +222,23 @@ public class DatabaseService
     }
 
     /// <summary>
+    /// Полностью очищает всю базу данных (удаляет замеры по всем алгоритмам).
+    /// </summary>
+    public async Task DeleteAllRunsAsync()
+    {
+        try
+        {
+            await using var db = new AppDbContext();
+            db.BenchmarkRuns.RemoveRange(db.BenchmarkRuns);
+            await db.SaveChangesAsync();
+        }
+        catch (Exception ex)
+        {
+            Console.WriteLine($"[DB] Ошибка полной очистки БД: {ex.Message}");
+        }
+    }
+
+    /// <summary>
     /// Сводка по всем сохранённым алгоритмам.
     /// </summary>
     public async Task<List<(string AlgoName, int UniqueNCount, DateTime LastRun)>> GetSummaryAsync()

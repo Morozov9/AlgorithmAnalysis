@@ -46,6 +46,7 @@ public partial class MainViewModel : ViewModelBase
     /// <summary>Выбранный алгоритм (обёртка с чекбоксом)</summary>
     [ObservableProperty]
     [NotifyCanExecuteChangedFor(nameof(RunBenchmarkCommand))]
+    [NotifyCanExecuteChangedFor(nameof(ClearAlgorithmDbCommand))]
     public partial SelectableAlgorithm? SelectedAlgorithm { get; set; }
 
     /// <summary>Выбран ли матричный алгоритм (для показа кнопки 3D-анализа)</summary>
@@ -84,6 +85,8 @@ public partial class MainViewModel : ViewModelBase
     [NotifyCanExecuteChangedFor(nameof(RunMatrix3DAnalysisCommand))]
     [NotifyCanExecuteChangedFor(nameof(GenerateReportCommand))]
     [NotifyCanExecuteChangedFor(nameof(CancelCommand))]
+    [NotifyCanExecuteChangedFor(nameof(ClearAlgorithmDbCommand))]
+    [NotifyCanExecuteChangedFor(nameof(ClearAllDbCommand))]
     public partial bool IsRunning { get; set; }
 
     /// <summary>Рекомендуемые размеры для выбранного алгоритма</summary>
@@ -752,6 +755,50 @@ public partial class MainViewModel : ViewModelBase
             var sizes = AlgorithmRegistry.GetRecommendedSizes(SelectedAlgorithm.Algorithm);
             SizesText = string.Join(", ", sizes);
         }
+    }
+
+    // ═══════════════════════════════════════════════════════════════════
+    //  ОЧИСТКА БД
+    // ═══════════════════════════════════════════════════════════════════
+
+    private bool CanClearAlgorithmDb() => !IsRunning && SelectedAlgorithm != null;
+
+    [RelayCommand(CanExecute = nameof(CanClearAlgorithmDb))]
+    private async Task ClearAlgorithmDb()
+    {
+        if (SelectedAlgorithm == null) return;
+
+        var algoName = SelectedAlgorithm.Algorithm.Name;
+
+        await _databaseService.DeleteRunsAsync(algoName);
+
+        // Сбрасываем in-memory кэш для этого алгоритма
+        SelectedAlgorithm.LastResult = null;
+
+        Results.Clear();
+        CurrentBenchmark = null;
+
+        CacheStatusText = $"Данные «{algoName}» удалены из БД";
+        StatusText = $"Очищено: {algoName}. Нажмите «Запустить анализ» для нового замера.";
+    }
+
+    private bool CanClearAllDb() => !IsRunning;
+
+    [RelayCommand(CanExecute = nameof(CanClearAllDb))]
+    private async Task ClearAllDb()
+    {
+        await _databaseService.DeleteAllRunsAsync();
+
+        // Сбрасываем in-memory кэш у всех алгоритмов
+        foreach (var item in Algorithms)
+            item.LastResult = null;
+
+        Results.Clear();
+        CurrentBenchmark = null;
+        ChartImageSource = null;
+
+        CacheStatusText = "БД полностью очищена";
+        StatusText = "База данных очищена. Все результаты замеров удалены.";
     }
 
     private bool CanCancel() => IsRunning;
