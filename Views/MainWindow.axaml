@@ -4,268 +4,235 @@
         xmlns:d="http://schemas.microsoft.com/expression/blend/2008"
         xmlns:mc="http://schemas.openxmlformats.org/markup-compatibility/2006"
         mc:Ignorable="d"
-        d:DesignWidth="1400" d:DesignHeight="800"
+        d:DesignWidth="1480" d:DesignHeight="900"
         x:Class="AlgorithmAnalysis.Views.MainWindow"
         x:DataType="vm:MainViewModel"
-        Title="Эмпирический анализ временной сложности алгоритмов"
-        Width="1400" Height="800"
+        Title="Algorithm Lab — анализ сложности"
+        Width="1480" Height="900"
+        MinWidth="1180" MinHeight="720"
         WindowStartupLocation="CenterScreen">
 
-	<Grid ColumnDefinitions="350,*,330" RowDefinitions="*">
+    <Grid RowDefinitions="Auto,*">
+        <!-- Верхняя панель даёт контекст и объясняет сценарий работы. -->
+        <Border Grid.Row="0" Background="#172033" Padding="24,18">
+            <Grid ColumnDefinitions="Auto,*,Auto">
+                <Border Grid.Column="0" Width="44" Height="44" CornerRadius="12"
+                        Background="#4F46E5" VerticalAlignment="Center">
+                    <TextBlock Text="∑" FontSize="24" FontWeight="Bold" Foreground="White"
+                               HorizontalAlignment="Center" VerticalAlignment="Center" />
+                </Border>
 
-		<!-- ══════════ ЛЕВАЯ ПАНЕЛЬ: список алгоритмов ══════════ -->
-		<Border Grid.Column="0" BorderBrush="#DDDDDD" BorderThickness="0,0,1,0" Padding="10">
-				<Grid RowDefinitions="Auto,*,Auto,Auto,Auto,Auto,Auto,Auto">
+                <StackPanel Grid.Column="1" Margin="14,0,0,0" VerticalAlignment="Center" Spacing="2">
+                    <TextBlock Text="ALGORITHM LAB" FontSize="10" FontWeight="Bold"
+                               Foreground="#A5B4FC" LetterSpacing="1.8" />
+                    <TextBlock Text="Эмпирический анализ сложности" FontSize="20"
+                               FontWeight="SemiBold" Foreground="White" />
+                    <TextBlock Text="Настройте эксперимент, сравните кривые и соберите наглядный отчёт"
+                               FontSize="12" Foreground="#AAB4C8" />
+                </StackPanel>
 
-				<TextBlock Grid.Row="0" Text="Выбор алгоритмов"
-                           FontSize="16" FontWeight="Bold" Margin="0,0,0,8"/>
+                <Border Grid.Column="2" Background="#24304A" CornerRadius="999" Padding="14,8"
+                        VerticalAlignment="Center">
+                    <StackPanel Orientation="Horizontal" Spacing="8">
+                        <Ellipse Width="8" Height="8" Fill="#34D399" VerticalAlignment="Center" />
+                        <TextBlock Text="Локальный режим · данные остаются на устройстве"
+                                   FontSize="11" Foreground="#DCE5F4" />
+                    </StackPanel>
+                </Border>
+            </Grid>
+        </Border>
 
-				<!-- Список с чекбоксами -->
-				<ScrollViewer Grid.Row="1" VerticalScrollBarVisibility="Auto">
-					<ListBox ItemsSource="{Binding Algorithms}"
-                             SelectedItem="{Binding SelectedAlgorithm}"
-                             SelectionMode="Single"
-                             BorderThickness="0">
-						<ListBox.ItemTemplate>
-							<DataTemplate x:DataType="vm:SelectableAlgorithm">
-								<Grid ColumnDefinitions="Auto,*,Auto" Margin="0,4">
-									<CheckBox Grid.Column="0"
-                                              IsChecked="{Binding IsSelected}"
-                                              VerticalAlignment="Center"
-                                              Margin="0,0,8,0"/>
-									<StackPanel Grid.Column="1">
-										<TextBlock Text="{Binding Name}"
-                                                   FontWeight="SemiBold"
-                                                   TextWrapping="Wrap"/>
-										<TextBlock Text="{Binding TheoreticalComplexityLabel}"
-                                                   FontSize="11"
-                                                   Foreground="#888888"/>
-									</StackPanel>
-									<Border Grid.Column="2"
-                                            IsVisible="{Binding HasResult}"
-                                            Background="#EEF2FF"
-                                            CornerRadius="4"
-                                            Padding="5,2"
-                                            VerticalAlignment="Center"
-                                            Margin="4,0,0,0">
-										<TextBlock Text="Готов" FontSize="10" Foreground="#4F46E5" FontWeight="SemiBold"/>
-									</Border>
-								</Grid>
-							</DataTemplate>
-						</ListBox.ItemTemplate>
-					</ListBox>
-				</ScrollViewer>
+        <Grid Grid.Row="1" ColumnDefinitions="336,*,380" Margin="18">
+            <!-- Шаг 1: параметры эксперимента. -->
+            <Border Grid.Column="0" Background="{StaticResource SurfaceBrush}"
+                    BorderBrush="{StaticResource BorderBrush}" BorderThickness="1"
+                    CornerRadius="16" Padding="16" Margin="0,0,14,0">
+                <Grid RowDefinitions="Auto,*,Auto">
+                    <StackPanel Grid.Row="0" Margin="2,0,2,14" Spacing="4">
+                        <StackPanel Orientation="Horizontal" Spacing="9">
+                            <Border Background="{StaticResource AccentSoftBrush}" CornerRadius="999"
+                                    Width="26" Height="26">
+                                <TextBlock Text="1" Foreground="{StaticResource AccentBrush}" FontWeight="Bold"
+                                           HorizontalAlignment="Center" VerticalAlignment="Center" />
+                            </Border>
+                            <TextBlock Text="Настройка эксперимента" FontSize="16" FontWeight="SemiBold"
+                                       VerticalAlignment="Center" />
+                        </StackPanel>
+                        <TextBlock Text="Выберите один алгоритм для просмотра или отметьте несколько для сравнения."
+                                   Foreground="{StaticResource TextSecondaryBrush}" FontSize="11"
+                                   TextWrapping="Wrap" Margin="35,0,0,0" />
+                    </StackPanel>
 
-				<!-- Размеры n -->
-				<StackPanel Grid.Row="2" Margin="0,8,0,0">
-					<TextBlock Text="Размеры входных данных n:" FontWeight="SemiBold" Margin="0,0,0,4"/>
-					<TextBox Text="{Binding SizesText}" />
-					<Grid ColumnDefinitions="*,*" Margin="0,4,0,0">
-						<Button Grid.Column="0"
-                                Content="Лаб. 1 (1..2000)"
-                                Command="{Binding SetLabSizesCommand}"
-                                Margin="0,0,2,0"/>
-						<Button Grid.Column="1"
-                                Content="Рекомендуемые"
-                                Command="{Binding SetRecommendedSizesCommand}"
-                                Margin="2,0,0,0"/>
-					</Grid>
-				</StackPanel>
+                    <ScrollViewer Grid.Row="1" VerticalScrollBarVisibility="Auto">
+                        <ListBox Classes="clean-list" ItemsSource="{Binding Algorithms}"
+                                 SelectedItem="{Binding SelectedAlgorithm}" SelectionMode="Single">
+                            <ListBox.ItemTemplate>
+                                <DataTemplate x:DataType="vm:SelectableAlgorithm">
+                                    <Border Background="Transparent" CornerRadius="10" Padding="10,9">
+                                        <Grid ColumnDefinitions="Auto,*,Auto">
+                                            <CheckBox Grid.Column="0" IsChecked="{Binding IsSelected}"
+                                                      VerticalAlignment="Center" Margin="0,0,10,0" />
+                                            <StackPanel Grid.Column="1" Spacing="2">
+                                                <TextBlock Text="{Binding Name}" FontWeight="SemiBold"
+                                                           FontSize="13" TextWrapping="Wrap" />
+                                                <TextBlock Text="{Binding TheoreticalComplexityLabel}"
+                                                           FontSize="11" Foreground="{StaticResource TextSecondaryBrush}" />
+                                            </StackPanel>
+                                            <Border Grid.Column="2" IsVisible="{Binding HasResult}"
+                                                    Background="{StaticResource SuccessSoftBrush}"
+                                                    CornerRadius="999" Padding="8,4" Margin="6,0,0,0"
+                                                    VerticalAlignment="Center">
+                                                <TextBlock Text="Готово" FontSize="10"
+                                                           Foreground="{StaticResource SuccessBrush}" FontWeight="SemiBold" />
+                                            </Border>
+                                        </Grid>
+                                    </Border>
+                                </DataTemplate>
+                            </ListBox.ItemTemplate>
+                        </ListBox>
+                    </ScrollViewer>
 
-				<!-- Кнопка "Запустить" -->
-				<Button Grid.Row="3"
-                        Content="Запустить анализ"
-                        Command="{Binding RunBenchmarkCommand}"
-                        Margin="0,10,0,0"
-                        HorizontalAlignment="Stretch"
-                        HorizontalContentAlignment="Center"
-                        Background="#1976D2"
-                        Foreground="White"
-                        FontWeight="Bold"
-                        FontSize="14"
-                        Padding="10"/>
+                    <StackPanel Grid.Row="2" Margin="0,14,0,0" Spacing="9">
+                        <Border Height="1" Background="{StaticResource BorderBrush}" />
+                        <TextBlock Text="Размеры входных данных" FontSize="12" FontWeight="SemiBold" />
+                        <TextBox Text="{Binding SizesText}"
+                                 PlaceholderText="Например: 100, 250, 500 или 1..2000:50" />
+                        <Grid ColumnDefinitions="*,*">
+                            <Button Grid.Column="0" Classes="secondary compact" Content="Лаб. 1"
+                                    Command="{Binding SetLabSizesCommand}" Margin="0,0,4,0" />
+                            <Button Grid.Column="1" Classes="secondary compact" Content="Рекомендуемые"
+                                    Command="{Binding SetRecommendedSizesCommand}" Margin="4,0,0,0" />
+                        </Grid>
 
-				<!-- Кнопка 3D-анализа матриц T(n, m) -->
-				<Button Grid.Row="4"
-                        Content="3D-анализ матриц T(n, m)"
-                        Command="{Binding RunMatrix3DAnalysisCommand}"
-                        IsVisible="{Binding IsMatrixAlgorithmSelected}"
-                        Margin="0,6,0,0"
-                        HorizontalAlignment="Stretch"
-                        HorizontalContentAlignment="Center"
-                        Background="#0284C7"
-                        Foreground="White"
-                        FontWeight="Bold"
-                        FontSize="13"
-                        Padding="10"/>
+                        <Button Classes="primary" Content="▶  Запустить анализ"
+                                Command="{Binding RunBenchmarkCommand}" />
+                        <Button Classes="secondary" Content="Запустить все отмеченные"
+                                Command="{Binding RunAllSelectedCommand}" />
+                        <Button Classes="success" Content="Сравнить отмеченные"
+                                Command="{Binding CompareSelectedCommand}" />
+                        <Button Classes="secondary" Content="3D-анализ матриц T(n, m)"
+                                Command="{Binding RunMatrix3DAnalysisCommand}"
+                                IsVisible="{Binding IsMatrixAlgorithmSelected}" />
 
-				<!-- Кнопка "Запустить все выбранные" -->
-				<Button Grid.Row="5"
-                        Content="Запустить все выбранные"
-                        Command="{Binding RunAllSelectedCommand}"
-                        Margin="0,6,0,0"
-                        HorizontalAlignment="Stretch"
-                        HorizontalContentAlignment="Center"
-                        Background="#2E7D32"
-                        Foreground="White"
-                        FontWeight="Bold"
-                        FontSize="13"
-                        Padding="10"/>
+                        <CheckBox Content="Пересчитать, не используя кэш"
+                                  IsChecked="{Binding ForceRecalculate}" FontSize="11"
+                                  Foreground="{StaticResource TextSecondaryBrush}" Margin="2,2,0,0" />
+                    </StackPanel>
+                </Grid>
+            </Border>
 
-				<!-- Кнопка "Сравнить выбранные" -->
-				<Button Grid.Row="6"
-                        Content="Сравнить выбранные"
-                        Command="{Binding CompareSelectedCommand}"
-                        Margin="0,6,0,0"
-                        HorizontalAlignment="Stretch"
-                        HorizontalContentAlignment="Center"
-                        Background="#4F46E5"
-                        Foreground="White"
-                        FontWeight="Bold"
-                        FontSize="13"
-                        Padding="10"/>
+            <!-- Шаг 2: график и состояние эксперимента. -->
+            <Grid Grid.Column="1" RowDefinitions="Auto,*,Auto" Margin="0,0,14,0">
+                <Grid Grid.Row="0" ColumnDefinitions="*,Auto" Margin="2,0,2,10">
+                    <StackPanel Orientation="Horizontal" Spacing="9">
+                        <Border Background="{StaticResource AccentSoftBrush}" CornerRadius="999"
+                                Width="26" Height="26">
+                            <TextBlock Text="2" Foreground="{StaticResource AccentBrush}" FontWeight="Bold"
+                                       HorizontalAlignment="Center" VerticalAlignment="Center" />
+                        </Border>
+                        <StackPanel Spacing="1">
+                            <TextBlock Text="Визуализация" FontSize="16" FontWeight="SemiBold" />
+                            <TextBlock Text="Экспериментальная кривая и теоретическая модель"
+                                       FontSize="11" Foreground="{StaticResource TextSecondaryBrush}" />
+                        </StackPanel>
+                    </StackPanel>
+                    <Button Grid.Column="1" Classes="secondary compact" Content="Сбросить масштаб"
+                            Click="OnResetViewClick" VerticalAlignment="Center" />
+                </Grid>
 
-				<!-- Чекбокс принудительного пересчёта -->
-				<CheckBox Grid.Row="7"
-                          Content="Принудительный пересчёт (игнорировать кэш)"
-                          IsChecked="{Binding ForceRecalculate}"
-                          Margin="0,8,0,0"
-                          FontSize="12"/>
+                <Border Grid.Row="1" Name="ChartContainer"
+                        Background="{StaticResource SurfaceBrush}"
+                        BorderBrush="{StaticResource BorderBrush}" BorderThickness="1"
+                        CornerRadius="16" Padding="10">
+                    <Grid RowDefinitions="Auto,*">
+                        <Grid Grid.Row="0" ColumnDefinitions="*,Auto" Margin="6,3,6,8">
+                            <TextBlock Text="{Binding HoverCoordinatesText}" FontSize="11"
+                                       Foreground="{StaticResource TextSecondaryBrush}"
+                                       VerticalAlignment="Center" TextTrimming="CharacterEllipsis" />
+                            <Border Grid.Column="1" Background="{StaticResource SurfaceMutedBrush}"
+                                    CornerRadius="999" Padding="9,4">
+                                <TextBlock Text="колесо — масштаб · перетаскивание — обзор"
+                                           FontSize="10" Foreground="{StaticResource TextSecondaryBrush}" />
+                            </Border>
+                        </Grid>
+                        <Image Grid.Row="1" Source="{Binding ChartImageSource}" Stretch="Uniform" />
+                    </Grid>
+                </Border>
 
-			</Grid>
-		</Border>
+                <Border Grid.Row="2" Background="{StaticResource SurfaceBrush}"
+                        BorderBrush="{StaticResource BorderBrush}" BorderThickness="1"
+                        CornerRadius="13" Padding="14,11" Margin="0,10,0,0">
+                    <Grid ColumnDefinitions="Auto,*,Auto" RowDefinitions="Auto,Auto,Auto">
+                        <Border Grid.Column="0" Grid.RowSpan="2" Width="34" Height="34" CornerRadius="10"
+                                Background="{StaticResource AccentSoftBrush}" Margin="0,0,11,0">
+                            <TextBlock Text="↻" FontSize="17" Foreground="{StaticResource AccentBrush}"
+                                       HorizontalAlignment="Center" VerticalAlignment="Center" />
+                        </Border>
+                        <TextBlock Grid.Column="1" Text="{Binding StatusText}" FontSize="12"
+                                   FontWeight="SemiBold" TextWrapping="Wrap" />
+                        <TextBlock Grid.Column="1" Grid.Row="1" Text="{Binding CacheStatusText}" FontSize="10"
+                                   Foreground="{StaticResource TextSecondaryBrush}" TextWrapping="Wrap" />
+                        <Button Grid.Column="2" Grid.RowSpan="2" Classes="danger compact" Content="Отменить"
+                                Command="{Binding CancelCommand}" VerticalAlignment="Center" Margin="10,0,0,0" />
+                        <ProgressBar Grid.Column="1" Grid.ColumnSpan="2" Grid.Row="2"
+                                     Value="{Binding Progress}" Minimum="0" Maximum="100" Margin="0,9,0,0" />
+                    </Grid>
+                </Border>
+            </Grid>
 
-		<!-- ══════════ ЦЕНТР: график ══════════ -->
-		<Grid Grid.Column="1" RowDefinitions="Auto,*,Auto">
+            <!-- Шаг 3: измерения и экспорт. -->
+            <Border Grid.Column="2" Background="{StaticResource SurfaceBrush}"
+                    BorderBrush="{StaticResource BorderBrush}" BorderThickness="1"
+                    CornerRadius="16" Padding="16">
+                <Grid RowDefinitions="Auto,*,Auto">
+                    <StackPanel Grid.Row="0" Margin="2,0,2,14" Spacing="4">
+                        <StackPanel Orientation="Horizontal" Spacing="9">
+                            <Border Background="{StaticResource AccentSoftBrush}" CornerRadius="999"
+                                    Width="26" Height="26">
+                                <TextBlock Text="3" Foreground="{StaticResource AccentBrush}" FontWeight="Bold"
+                                           HorizontalAlignment="Center" VerticalAlignment="Center" />
+                            </Border>
+                            <TextBlock Text="Результаты измерений" FontSize="16" FontWeight="SemiBold"
+                                       VerticalAlignment="Center" />
+                        </StackPanel>
+                        <TextBlock Text="Точки эксперимента, аппроксимация и материалы для отчёта."
+                                   Foreground="{StaticResource TextSecondaryBrush}" FontSize="11"
+                                   TextWrapping="Wrap" Margin="35,0,0,0" />
+                    </StackPanel>
 
-			<!-- Заголовок / координаты -->
-			<Grid Grid.Row="0" ColumnDefinitions="*,Auto,Auto" Margin="10,10,10,0">
-				<TextBlock Grid.Column="0"
-                           Text="{Binding HoverCoordinatesText}"
-                           FontSize="12"
-                           Foreground="#555555"
-                           VerticalAlignment="Center"/>
-				<TextBlock Grid.Column="1"
-                           Text="Колёсико: зум | Зажатие: панорама"
-                           FontSize="11"
-                           Foreground="#888888"
-                           Margin="0,0,10,0"
-                           VerticalAlignment="Center"/>
-				<Button Grid.Column="2"
-                        Content="Сбросить масштаб"
-                        Click="OnResetViewClick"
-                        FontSize="12"/>
-			</Grid>
+                    <Border Grid.Row="1" BorderBrush="{StaticResource BorderBrush}" BorderThickness="1"
+                            CornerRadius="11" ClipToBounds="True">
+                        <DataGrid ItemsSource="{Binding Results}" IsReadOnly="True"
+                                  HeadersVisibility="Column" CanUserResizeColumns="True">
+                            <DataGrid.Columns>
+                                <DataGridTextColumn Header="n" Binding="{Binding N}" Width="50" />
+                                <DataGridTextColumn Header="Эксп., мс" Binding="{Binding AverageTimeMs, StringFormat=F4}" Width="*" />
+                                <DataGridTextColumn Header="Шаги" Binding="{Binding StepCount}" Width="72" />
+                                <DataGridTextColumn Header="Теория" Binding="{Binding TheoreticalTimeMs, StringFormat=F2}" Width="82" />
+                            </DataGrid.Columns>
+                        </DataGrid>
+                    </Border>
 
-			<!-- Интерактивный график -->
-			<Border Grid.Row="1"
-                    Name="ChartContainer"
-                    Margin="10,8,10,10"
-                    Background="White"
-                    BorderBrush="#CCCCCC"
-                    BorderThickness="1">
-				<Image Source="{Binding ChartImageSource}"
-                       Stretch="Uniform"/>
-			</Border>
+                    <StackPanel Grid.Row="2" Margin="0,14,0,0" Spacing="8">
+                        <Button Classes="primary" Content="Сформировать полный отчёт"
+                                Command="{Binding GenerateReportCommand}" />
+                        <Button Classes="secondary" Content="Экспортировать график в PNG"
+                                Command="{Binding ExportChartCommand}" />
 
-			<!-- Статус + прогресс -->
-			<StackPanel Grid.Row="2" Margin="10,0,10,10">
-				<TextBlock Text="{Binding StatusText}"
-                           FontSize="12"
-                           TextWrapping="Wrap"
-                           Margin="0,0,0,4"/>
-				<TextBlock Text="{Binding CacheStatusText}"
-                           FontSize="11"
-                           Foreground="#666666"
-                           TextWrapping="Wrap"
-                           Margin="0,0,0,4"/>
-				<ProgressBar Value="{Binding Progress}"
-                             Minimum="0" Maximum="100"
-                             Height="6"/>
-			</StackPanel>
-		</Grid>
-
-		<!-- ══════════ ПРАВАЯ ПАНЕЛЬ: результаты ══════════ -->
-		<Border Grid.Column="2" BorderBrush="#DDDDDD" BorderThickness="1,0,0,0" Padding="10">
-			<Grid RowDefinitions="Auto,*,Auto,Auto,Auto,Auto,Auto">
-
-				<TextBlock Grid.Row="0"
-                           Text="Результаты"
-                           FontSize="16" FontWeight="Bold"
-                           Margin="0,0,0,8"/>
-
-				<DataGrid Grid.Row="1"
-                          ItemsSource="{Binding Results}"
-                          IsReadOnly="True"
-                          GridLinesVisibility="Horizontal"
-                          HeadersVisibility="Column">
-					<DataGrid.Columns>
-						<DataGridTextColumn Header="n" Binding="{Binding N}" Width="55"/>
-						<DataGridTextColumn Header="T эксп (мс)" Binding="{Binding AverageTimeMs, StringFormat=F4}" Width="90"/>
-						<DataGridTextColumn Header="Шаги" Binding="{Binding StepCount}" Width="75"/>
-						<DataGridTextColumn Header="Теория" Binding="{Binding TheoreticalTimeMs, StringFormat=F2}" Width="90"/>
-					</DataGrid.Columns>
-				</DataGrid>
-
-				<!-- Сформировать отчёт -->
-				<Button Grid.Row="2"
-                        Content="Сформировать полный отчёт"
-                        Command="{Binding GenerateReportCommand}"
-                        Margin="0,10,0,0"
-                        HorizontalAlignment="Stretch"
-                        HorizontalContentAlignment="Center"
-                        Background="#1976D2"
-                        Foreground="White"
-                        FontWeight="Bold"
-                        Padding="10"/>
-
-				<!-- Экспорт графика -->
-				<Button Grid.Row="3"
-                        Content="Экспорт графика (PNG)"
-                        Command="{Binding ExportChartCommand}"
-                        Margin="0,6,0,0"
-                        HorizontalAlignment="Stretch"
-                        HorizontalContentAlignment="Center"
-                        Padding="10"/>
-
-				<!-- Отмена -->
-				<Button Grid.Row="4"
-                        Content="Отмена"
-                        Command="{Binding CancelCommand}"
-                        Margin="0,6,0,0"
-                        HorizontalAlignment="Stretch"
-                        HorizontalContentAlignment="Center"
-                        Background="#C62828"
-                        Foreground="White"
-                        FontWeight="Bold"
-                        Padding="10"/>
-
-				<!-- Разделитель -->
-				<Separator Grid.Row="5" Margin="0,10,0,0"/>
-
-				<!-- Очистка БД -->
-				<StackPanel Grid.Row="6" Spacing="6" Margin="0,6,0,0">
-					<Button Content="Очистить данные алгоритма из БД"
-                            Command="{Binding ClearAlgorithmDbCommand}"
-                            HorizontalAlignment="Stretch"
-                            HorizontalContentAlignment="Center"
-                            Background="#E65100"
-                            Foreground="White"
-                            FontSize="12"
-                            Padding="8"/>
-					<Button Content="Очистить всю БД"
-                            Command="{Binding ClearAllDbCommand}"
-                            HorizontalAlignment="Stretch"
-                            HorizontalContentAlignment="Center"
-                            Background="#B71C1C"
-                            Foreground="White"
-                            FontSize="12"
-                            FontWeight="Bold"
-                            Padding="8"/>
-				</StackPanel>
-
-			</Grid>
-		</Border>
-
-	</Grid>
+                        <Expander Header="Управление сохранёнными данными" Margin="0,4,0,0">
+                            <StackPanel Spacing="7" Margin="0,9,0,0">
+                                <TextBlock Text="Очистка необратимо удалит выбранные измерения из локальной базы."
+                                           FontSize="10" Foreground="{StaticResource TextSecondaryBrush}"
+                                           TextWrapping="Wrap" />
+                                <Button Classes="danger compact" Content="Удалить данные текущего алгоритма"
+                                        Command="{Binding ClearAlgorithmDbCommand}" />
+                                <Button Classes="danger compact" Content="Очистить всю базу измерений"
+                                        Command="{Binding ClearAllDbCommand}" />
+                            </StackPanel>
+                        </Expander>
+                    </StackPanel>
+                </Grid>
+            </Border>
+        </Grid>
+    </Grid>
 </Window>

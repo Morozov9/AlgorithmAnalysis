@@ -62,7 +62,7 @@ public partial class MainWindow : Window
 
         var plt = new ScottPlot.Plot();
         ApplyTheme(plt);
-        plt.Title("Выберите алгоритм и нажмите «Запустить анализ»");
+        plt.Title("Выберите алгоритм, чтобы начать исследование");
         plt.XLabel("Размерность входных данных n");
         plt.YLabel("Время выполнения (мс)");
         plt.Axes.SetLimits(0, 2000, 0, 10);
@@ -77,23 +77,23 @@ public partial class MainWindow : Window
 
         if (isDark)
         {
-            plt.FigureBackground.Color = ScottPlot.Color.FromHex("#1E1E1E");
-            plt.DataBackground.Color = ScottPlot.Color.FromHex("#252526");
-            plt.Axes.Color(ScottPlot.Color.FromHex("#D4D4D4"));
-            plt.Grid.MajorLineColor = ScottPlot.Color.FromHex("#3A3A3D");
-            plt.Legend.BackgroundColor = ScottPlot.Color.FromHex("#2D2D30");
-            plt.Legend.FontColor = ScottPlot.Color.FromHex("#E0E0E0");
-            plt.Legend.OutlineColor = ScottPlot.Color.FromHex("#454545");
+            plt.FigureBackground.Color = ScottPlot.Color.FromHex("#172033");
+            plt.DataBackground.Color = ScottPlot.Color.FromHex("#1E293B");
+            plt.Axes.Color(ScottPlot.Color.FromHex("#CBD5E1"));
+            plt.Grid.MajorLineColor = ScottPlot.Color.FromHex("#334155");
+            plt.Legend.BackgroundColor = ScottPlot.Color.FromHex("#24304A");
+            plt.Legend.FontColor = ScottPlot.Color.FromHex("#E2E8F0");
+            plt.Legend.OutlineColor = ScottPlot.Color.FromHex("#475569");
         }
         else
         {
             plt.FigureBackground.Color = ScottPlot.Color.FromHex("#FFFFFF");
-            plt.DataBackground.Color = ScottPlot.Color.FromHex("#FAFAFA");
-            plt.Axes.Color(ScottPlot.Color.FromHex("#333333"));
-            plt.Grid.MajorLineColor = ScottPlot.Color.FromHex("#E0E0E0");
+            plt.DataBackground.Color = ScottPlot.Color.FromHex("#FBFCFF");
+            plt.Axes.Color(ScottPlot.Color.FromHex("#475569"));
+            plt.Grid.MajorLineColor = ScottPlot.Color.FromHex("#E7EAF4");
             plt.Legend.BackgroundColor = ScottPlot.Color.FromHex("#FFFFFF");
-            plt.Legend.FontColor = ScottPlot.Color.FromHex("#333333");
-            plt.Legend.OutlineColor = ScottPlot.Color.FromHex("#CCCCCC");
+            plt.Legend.FontColor = ScottPlot.Color.FromHex("#334155");
+            plt.Legend.OutlineColor = ScottPlot.Color.FromHex("#E2E8F0");
         }
     }
 
@@ -114,13 +114,13 @@ public partial class MainWindow : Window
 
             var expPlot = plt.Add.ScatterLine(xs, ysExp);
             expPlot.LegendText = benchmark.IsStepBased ? "Эксперимент (шаги)" : "Эксперимент";
-            expPlot.Color = ScottPlot.Color.FromHex("#29B6F6");
-            expPlot.LineWidth = 2.5f;
+            expPlot.Color = ScottPlot.Color.FromHex("#4F46E5");
+            expPlot.LineWidth = 3f;
 
             var theoPlot = plt.Add.ScatterLine(xs, ysTheo);
             theoPlot.LegendText = $"Теория {benchmark.ComplexityLabel}";
-            theoPlot.Color = ScottPlot.Color.FromHex("#EF5350");
-            theoPlot.LineWidth = 2;
+            theoPlot.Color = ScottPlot.Color.FromHex("#F97366");
+            theoPlot.LineWidth = 2.2f;
             theoPlot.LinePattern = LinePattern.Dashed;
 
             plt.Title($"{benchmark.AlgorithmName}  |  c = {benchmark.FittedCoefficient:E2}  |  MSE = {benchmark.MSE:E2}");

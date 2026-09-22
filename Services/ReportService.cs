@@ -262,6 +262,49 @@ public class ReportService
         sb.AppendLine("      .sidebar { width: 100%; height: auto; position: static; }");
         sb.AppendLine("      .main-content { padding: 16px; }");
         sb.AppendLine("    }");
+        sb.AppendLine("");
+        sb.AppendLine("    /* Единый визуальный язык отчёта */");
+        sb.AppendLine("    :root { --ink:#172033; --muted:#64748b; --line:#e2e8f0; --accent:#4f46e5; --accent-dark:#3730a3; --accent-soft:#eef2ff; --success:#0f9f6e; }");
+        sb.AppendLine("    body { background: radial-gradient(circle at 72% 0%, #eef2ff 0, transparent 30%), #f4f7fc; color:var(--ink); }");
+        sb.AppendLine("    .sidebar { width:300px; min-width:300px; padding:24px 18px; background:linear-gradient(180deg,#172033 0%,#111827 100%); color:#dbe4f3; border:0; box-shadow:12px 0 38px rgba(15,23,42,.08); }");
+        sb.AppendLine("    .sidebar-header { border-color:rgba(255,255,255,.10); padding-bottom:20px; }");
+        sb.AppendLine("    .brand-row { display:flex; align-items:center; gap:12px; }");
+        sb.AppendLine("    .brand-mark { display:grid; place-items:center; width:38px; height:38px; border-radius:11px; background:linear-gradient(135deg,#6366f1,#4f46e5); color:white; font-size:20px; font-weight:800; box-shadow:0 8px 20px rgba(79,70,229,.35); }");
+        sb.AppendLine("    .sidebar-title { color:#fff; font-size:14px; letter-spacing:.01em; }");
+        sb.AppendLine("    .sidebar-sub { color:#94a3b8; }");
+        sb.AppendLine("    .search-input { color:#f8fafc; background:rgba(255,255,255,.07); border-color:rgba(255,255,255,.12); border-radius:10px; padding:10px 12px; }");
+        sb.AppendLine("    .search-input::placeholder { color:#94a3b8; }");
+        sb.AppendLine("    .search-input:focus { background:rgba(255,255,255,.10); border-color:#818cf8; box-shadow:0 0 0 3px rgba(99,102,241,.18); }");
+        sb.AppendLine("    .nav-btn { min-height:38px; padding:9px 11px; border-radius:9px; color:#cbd5e1; }");
+        sb.AppendLine("    .nav-btn:hover { background:rgba(255,255,255,.07); color:#fff; }");
+        sb.AppendLine("    .nav-btn.active { background:rgba(99,102,241,.18); color:#c7d2fe; box-shadow:inset 3px 0 0 #818cf8; }");
+        sb.AppendLine("    .nav-group-title { color:#64748b; margin-top:20px; }");
+        sb.AppendLine("    .print-btn { background:#4f46e5; border-color:#4f46e5; color:#fff; box-shadow:0 8px 18px rgba(79,70,229,.22); }");
+        sb.AppendLine("    .view-all-btn { background:rgba(255,255,255,.05); color:#cbd5e1; border-color:rgba(255,255,255,.12); }");
+        sb.AppendLine("    .main-content { padding:34px clamp(24px,4vw,64px) 64px; }");
+        sb.AppendLine("    .header-box { position:relative; overflow:hidden; padding:32px 34px 28px; border:0; border-radius:20px; background:linear-gradient(135deg,#172033 0%,#263454 62%,#3730a3 145%); box-shadow:0 18px 45px rgba(15,23,42,.15); }");
+        sb.AppendLine("    .header-box::after { content:''; position:absolute; width:300px; height:300px; border-radius:50%; right:-125px; top:-150px; background:rgba(129,140,248,.18); }");
+        sb.AppendLine("    .header-box h2 { color:#fff; font-size:clamp(23px,3vw,34px); line-height:1.15; letter-spacing:-.03em; max-width:820px; }");
+        sb.AppendLine("    .header-box p { color:#cbd5e1; max-width:900px; }");
+        sb.AppendLine("    .eyebrow { color:#a5b4fc; font-size:11px; font-weight:800; letter-spacing:.14em; text-transform:uppercase; margin-bottom:12px; }");
+        sb.AppendLine("    .hero-grid { position:relative; z-index:1; display:grid; grid-template-columns:1fr auto; gap:24px; align-items:start; }");
+        sb.AppendLine("    .report-date { min-width:170px; padding:10px 13px; border-radius:10px; background:rgba(255,255,255,.08); border:1px solid rgba(255,255,255,.12); color:#e2e8f0; font-size:12px; text-align:center; }");
+        sb.AppendLine("    .kpi-strip { position:relative; z-index:1; display:grid; grid-template-columns:repeat(3,minmax(0,1fr)); gap:10px; margin-top:24px; }");
+        sb.AppendLine("    .kpi-card { padding:13px 15px; border-radius:12px; background:rgba(255,255,255,.075); border:1px solid rgba(255,255,255,.10); }");
+        sb.AppendLine("    .kpi-value { color:#fff; font-size:21px; line-height:1; font-weight:750; }");
+        sb.AppendLine("    .kpi-label { color:#aab6ca; font-size:10px; margin-top:6px; text-transform:uppercase; letter-spacing:.06em; }");
+        sb.AppendLine("    .section-lead { margin:4px 0 18px; color:var(--muted); font-size:14px; }");
+        sb.AppendLine("    .algo-card { border:1px solid rgba(226,232,240,.9); border-radius:16px; padding:28px 30px; box-shadow:0 10px 30px rgba(15,23,42,.055); }");
+        sb.AppendLine("    .algo-card h3 { font-size:19px; letter-spacing:-.01em; }");
+        sb.AppendLine("    .chart-img { border-radius:13px; box-shadow:0 10px 28px rgba(15,23,42,.07); }");
+        sb.AppendLine("    table { overflow:hidden; border-radius:12px; border-style:hidden; box-shadow:0 0 0 1px var(--line); }");
+        sb.AppendLine("    th { background:#f1f5f9; color:#475569; font-size:11px; letter-spacing:.025em; text-transform:uppercase; }");
+        sb.AppendLine("    th,td { border-color:#edf0f5; }");
+        sb.AppendLine("    tr:hover td { background:#f7f8ff; }");
+        sb.AppendLine("    .badge { border-radius:999px; padding:4px 9px; }");
+        sb.AppendLine("    .badge-step { background:#eef2ff; color:#4338ca; border-color:#c7d2fe; }");
+        sb.AppendLine("    .tip-box { border-left-color:#4f46e5; background:#f7f7ff; border-radius:10px; }");
+        sb.AppendLine("    @media (max-width:900px) { .sidebar{width:100%;min-width:0;max-height:420px;position:relative;border-bottom:1px solid rgba(255,255,255,.10);} .hero-grid{grid-template-columns:1fr;} .report-date{text-align:left;width:max-content;} .kpi-strip{grid-template-columns:1fr;} }");
         sb.AppendLine("  </style>");
         sb.AppendLine("</head>");
         sb.AppendLine("<body>");
@@ -271,8 +314,10 @@ public class ReportService
         // Генерация сайдбара
         sb.AppendLine("    <div class=\"sidebar\">");
         sb.AppendLine("      <div class=\"sidebar-header\">");
-        sb.AppendLine("        <div class=\"sidebar-title\">Лабораторная работа №1</div>");
-        sb.AppendLine("        <div class=\"sidebar-sub\">Эмпирический анализ алгоритмов</div>");
+        sb.AppendLine("        <div class=\"brand-row\"><span class=\"brand-mark\">∑</span><div>");
+        sb.AppendLine("          <div class=\"sidebar-title\">Algorithm Lab</div>");
+        sb.AppendLine("          <div class=\"sidebar-sub\">Отчёт по сложности</div>");
+        sb.AppendLine("        </div></div>");
         sb.AppendLine("      </div>");
 
         sb.AppendLine("      <input type=\"text\" id=\"algoSearch\" class=\"search-input\" placeholder=\"Поиск алгоритма...\" oninput=\"filterAlgos()\">");
@@ -321,14 +366,22 @@ public class ReportService
         sb.AppendLine("    <div class=\"main-content\">");
 
         sb.AppendLine("      <div class=\"header-box\">");
-        sb.AppendLine("        <h2>Лабораторная работа №1: Эмпирический анализ сложности алгоритмов</h2>");
-        sb.AppendLine("        <p><b>Тема:</b> Эмпирический анализ временной сложности алгоритмов, Big-O аппроксимация, подсчёт шагов</p>");
-        sb.AppendLine($"        <p><b>Дата формирования:</b> {DateTime.Now:dd.MM.yyyy HH:mm}</p>");
-        sb.AppendLine("        <p><b>Цель:</b> Практическое исследование зависимости времени работы и количества элементарных операций от объёма входных данных, сопоставление экспериментальных кривых с теоретическими функциями сложности, аппроксимация МНК и оценка MSE.</p>");
+        sb.AppendLine("        <div class=\"hero-grid\"><div>");
+        sb.AppendLine("          <div class=\"eyebrow\">Лабораторная работа №1 · Аналитический отчёт</div>");
+        sb.AppendLine("          <h2>Эмпирический анализ сложности алгоритмов</h2>");
+        sb.AppendLine("          <p>Сопоставление экспериментальных кривых с теоретическими функциями Big-O, аппроксимация методом наименьших квадратов и оценка точности по MSE.</p>");
+        sb.AppendLine("        </div>");
+        sb.AppendLine($"        <div class=\"report-date\">Сформировано<br><b>{DateTime.Now:dd.MM.yyyy · HH:mm}</b></div></div>");
+        sb.AppendLine("        <div class=\"kpi-strip\">");
+        sb.AppendLine($"          <div class=\"kpi-card\"><div class=\"kpi-value\">{results.Count}</div><div class=\"kpi-label\">алгоритмов исследовано</div></div>");
+        sb.AppendLine($"          <div class=\"kpi-card\"><div class=\"kpi-value\">{groups.Count}</div><div class=\"kpi-label\">тематических групп</div></div>");
+        sb.AppendLine($"          <div class=\"kpi-card\"><div class=\"kpi-value\">{results.Sum(r => r.Result.Results.Count)}</div><div class=\"kpi-label\">экспериментальных точек</div></div>");
+        sb.AppendLine("        </div>");
         sb.AppendLine("      </div>");
 
         // 1. Вкладка Сводного обзора
         sb.AppendLine("      <div id=\"tab-summary\" class=\"tab-pane active summary-section\">");
+        sb.AppendLine("        <p class=\"section-lead\">Начните со сводной картины, затем откройте конкретный алгоритм в навигации слева, чтобы изучить замеры и качество аппроксимации.</p>");
 
         sb.AppendLine("        <div class=\"algo-card\">");
         sb.AppendLine("          <h3>Сравнительный анализ алгоритмов сортировки</h3>");
