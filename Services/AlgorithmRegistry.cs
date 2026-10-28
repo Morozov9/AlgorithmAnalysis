@@ -35,6 +35,9 @@ public static class AlgorithmRegistry
             // I.5 — Пузырьковая сортировка
             new BubbleSortAlgorithm(),
 
+            // Шейкерная сортировка
+            new CocktailShakerSortAlgorithm(),
+
             // I.6 — Быстрая сортировка
             new QuickSortAlgorithm(),
 

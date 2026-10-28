@@ -386,7 +386,7 @@ public class ReportService
         sb.AppendLine("        <div class=\"algo-card\">");
         sb.AppendLine("          <h3>Сравнительный анализ алгоритмов сортировки</h3>");
         sb.AppendLine($"          <img class=\"chart-img\" src=\"{combinedSortChartPath}\" alt=\"Сравнение сортировок\">");
-        sb.AppendLine("          <p><b>Анализ сортировок:</b> Из графиков отчётливо видно преимущество логарифмических сортировок <code>O(n log n)</code> (QuickSort, Timsort, MergeSort) над квадратичными <code>O(n²)</code> (BubbleSort, InsertionSort). При росте размера массива n до 2000 элементов квадратичные сортировки демонстрируют крутой параболический рост времени исполнения.</p>");
+        sb.AppendLine("          <p><b>Анализ сортировок:</b> Из графиков отчётливо видно преимущество логарифмических сортировок <code>O(n log n)</code> (QuickSort, Timsort, MergeSort) над квадратичными <code>O(n²)</code> (BubbleSort, Cocktail Shaker Sort, InsertionSort). При росте размера массива n до 2000 элементов квадратичные сортировки демонстрируют крутой параболический рост времени исполнения.</p>");
         sb.AppendLine("        </div>");
 
         sb.AppendLine("        <div class=\"algo-card\">");
