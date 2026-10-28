@@ -52,13 +52,13 @@ sealed class Program
         if (Math.Abs(resNaive.FittedCoefficient - 1.0) > 0.001)
             throw new Exception($"Коэффициент c для PowerNaive должен быть ~1.0, получено: {resNaive.FittedCoefficient}");
 
-        Console.WriteLine($"  PowerNaive: шаги=[{string.Join(", ", resNaive.Results.Select(r => r.StepCount))}], c={resNaive.FittedCoefficient:F4}, MSE={resNaive.MSE:E3}");
+        Console.WriteLine($"  PowerNaive: шаги=[{string.Join(", ", resNaive.Results.Select(r => r.StepCount))}], c={resNaive.FittedCoefficient:F4}, Ошибка = {resNaive.ErrorPercent:F2}%");
 
         var powerFast = new PowerFast();
         var resFast = benchService.RunBenchmarkAsync(powerFast, [16, 64, 256]).GetAwaiter().GetResult();
         if (!resFast.IsStepBased || resFast.Results[0].StepCount == 0)
             throw new Exception("PowerFast шаги не подсчитаны");
-        Console.WriteLine($"  PowerFast: шаги=[{string.Join(", ", resFast.Results.Select(r => r.StepCount))}], c={resFast.FittedCoefficient:F4}, MSE={resFast.MSE:E3}");
+        Console.WriteLine($"  PowerFast: шаги=[{string.Join(", ", resFast.Results.Select(r => r.StepCount))}], c={resFast.FittedCoefficient:F4}, Ошибка = {resFast.ErrorPercent:F2}%");
 
         // 2. Тест 3D-отчёта матриц Plotly
         Console.WriteLine("\n[2/3] Проверка генерации 3D-графика матриц...");

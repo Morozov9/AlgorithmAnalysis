@@ -126,9 +126,10 @@ public class Matrix3DReportService
 
         double fittedC = denominator > 0 ? numerator / denominator : 0;
 
-        // Формируем теоретическую матрицу zTheo[m_idx][n_idx] и считаем MSE
+        // Формируем теоретическую матрицу и считаем относительную ошибку
         double[][] zTheo = new double[mSizes.Length][];
         double sumSqErrors = 0;
+        double sumSqActual = 0;
 
         for (int mIdx = 0; mIdx < mSizes.Length; mIdx++)
         {
@@ -144,10 +145,13 @@ public class Matrix3DReportService
 
                 double err = zExp[mIdx][nIdx] - tTheo;
                 sumSqErrors += err * err;
+                sumSqActual += zExp[mIdx][nIdx] * zExp[mIdx][nIdx];
             }
         }
 
-        double mse = sumSqErrors / totalPoints;
+        double relativeErrorPercent = sumSqActual > 0
+            ? 100 * Math.Sqrt(sumSqErrors / sumSqActual)
+            : 0;
 
         // 4. Генерация HTML-файла с Plotly 3D
         progress?.Invoke("Генерация 3D-графика Plotly...", 0.97);
@@ -156,7 +160,7 @@ public class Matrix3DReportService
         Directory.CreateDirectory(outputDir);
         string htmlPath = Path.Combine(outputDir, $"matrix_3d_{DateTime.Now:yyyyMMdd_HHmmss}.html");
 
-        string htmlContent = GeneratePlotlyHtml(nSizes, mSizes, zExp, zTheo, fittedC, mse);
+        string htmlContent = GeneratePlotlyHtml(nSizes, mSizes, zExp, zTheo, fittedC, relativeErrorPercent);
         await File.WriteAllTextAsync(htmlPath, htmlContent, Encoding.UTF8, cancellationToken);
 
         progress?.Invoke("3D-анализ успешно сформирован!", 1.0);
@@ -169,7 +173,7 @@ public class Matrix3DReportService
         double[][] zExp,
         double[][] zTheo,
         double fittedC,
-        double mse)
+        double relativeErrorPercent)
     {
         string xJson = JsonSerializer.Serialize(nSizes);
         string yJson = JsonSerializer.Serialize(mSizes);
@@ -236,7 +240,7 @@ public class Matrix3DReportService
         sb.AppendLine("      <div class=\"meta-badges\">");
         sb.AppendLine("        <div class=\"badge\">Теоретическая сложность: <strong>O(n² · m)</strong></div>");
         sb.AppendLine($"        <div class=\"badge\">Коэффициент аппроксимации c: <strong>{fittedC:E3}</strong></div>");
-        sb.AppendLine($"        <div class=\"badge\">MSE аппроксимации: <strong>{mse:E3}</strong></div>");
+        sb.AppendLine($"        <div class=\"badge\">Относительная среднеквадратичная ошибка: <strong>{relativeErrorPercent:F2}%</strong></div>");
         sb.AppendLine($"        <div class=\"badge\">Сетка замеров: <strong>{nSizes.Length} × {mSizes.Length} = {nSizes.Length * mSizes.Length} точек</strong></div>");
         sb.AppendLine("      </div>");
         sb.AppendLine("    </div>");

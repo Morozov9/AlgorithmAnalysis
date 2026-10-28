@@ -122,7 +122,7 @@ public class ReportService
         exp.LineWidth = 2;
 
         var theo = plt.Add.ScatterLine(xs, ysTheo);
-        theo.LegendText = $"Аппроксимация ({bench.ComplexityLabel}, c={bench.FittedCoefficient:E2}, MSE={bench.MSE:E2})";
+        theo.LegendText = $"Аппроксимация ({bench.ComplexityLabel}, c={bench.FittedCoefficient:E2}, ошибка={bench.ErrorPercent:F2}%)";
         theo.Color = Color.FromHex("#D32F2F");
         theo.LineWidth = 2;
         theo.LinePattern = LinePattern.Dashed;
@@ -369,7 +369,7 @@ public class ReportService
         sb.AppendLine("        <div class=\"hero-grid\"><div>");
         sb.AppendLine("          <div class=\"eyebrow\">Лабораторная работа №1 · Аналитический отчёт</div>");
         sb.AppendLine("          <h2>Эмпирический анализ сложности алгоритмов</h2>");
-        sb.AppendLine("          <p>Сопоставление экспериментальных кривых с теоретическими функциями Big-O, аппроксимация методом наименьших квадратов и оценка точности по MSE.</p>");
+        sb.AppendLine("          <p>Сопоставление экспериментальных кривых с теоретическими функциями Big-O, аппроксимация методом наименьших квадратов и оценка ошибки в процентах.</p>");
         sb.AppendLine("        </div>");
         sb.AppendLine($"        <div class=\"report-date\">Сформировано<br><b>{DateTime.Now:dd.MM.yyyy · HH:mm}</b></div></div>");
         sb.AppendLine("        <div class=\"kpi-strip\">");
@@ -393,7 +393,7 @@ public class ReportService
         sb.AppendLine("          <h3>Сводная таблица результатов всех алгоритмов</h3>");
         sb.AppendLine("          <table>");
         sb.AppendLine("            <thead>");
-        sb.AppendLine("              <tr><th>Алгоритм</th><th>Группа</th><th>Класс сложности</th><th>Коэффициент c</th><th>MSE</th><th>Тип замера</th></tr>");
+        sb.AppendLine("              <tr><th>Алгоритм</th><th>Группа</th><th>Класс сложности</th><th>Коэффициент c</th><th>Ошибка, %</th><th>Тип замера</th></tr>");
         sb.AppendLine("            </thead>");
         sb.AppendLine("            <tbody>");
 
@@ -410,7 +410,7 @@ public class ReportService
             sb.AppendLine($"                <td style=\"text-align:center;\">{encodedGroup}</td>");
             sb.AppendLine($"                <td style=\"text-align:center;\"><span class=\"{badgeClass}\">{encodedClass}</span></td>");
             sb.AppendLine($"                <td><code>{bench.FittedCoefficient:E3}</code></td>");
-            sb.AppendLine($"                <td><code>{bench.MSE:E3}</code></td>");
+            sb.AppendLine($"                <td><code>{bench.ErrorPercent:F2}</code></td>");
             sb.AppendLine($"                <td style=\"text-align:center;\">{typeLabel}</td>");
             sb.AppendLine($"              </tr>");
         }
@@ -423,7 +423,7 @@ public class ReportService
         sb.AppendLine("          <h3>Теоретические выводы</h3>");
         sb.AppendLine("          <ol>");
         sb.AppendLine("            <li><b>Соответствие теории и практики:</b> Экспериментальные кривые подтверждают теоретические оценки Big-O для всех групп алгоритмов.</li>");
-        sb.AppendLine("            <li><b>Метрика MSE:</b> Минимальная среднеквадратичная ошибка подтверждает адекватность выбранной теоретической модели. Для детерминированных алгоритмов шагов MSE практически равна нулю.</li>");
+        sb.AppendLine("            <li><b>Ошибка аппроксимации:</b> Нормированная среднеквадратичная ошибка рассчитывается как 100 × √(Σ(эксп − теор)² / Σэксп²). Чем меньше процент, тем точнее модель описывает измерения.</li>");
         sb.AppendLine("            <li><b>Возведение в степень:</b> Подсчёт точного числа шагов (умножений) наглядно демонстрирует переход от линейного $O(n)$ к логарифмическому $O(\\log n)$ числу операций в бинарных алгоритмах.</li>");
         sb.AppendLine("          </ol>");
         sb.AppendLine("        </div>");
@@ -486,7 +486,7 @@ public class ReportService
             sb.AppendLine($"      <div id=\"tab-algo-{i}\" class=\"tab-pane\">");
             sb.AppendLine("        <div class=\"algo-card\">");
             sb.AppendLine($"          <h3>{encodedName} <span class=\"{badgeClass}\">{encodedClass}</span></h3>");
-            sb.AppendLine($"          <div class=\"meta-line\">Группа: <b>{encodedGroup}</b> | Коэффициент c: <code>{bench.FittedCoefficient:E3}</code> | MSE: <code>{bench.MSE:E3}</code> | Измерение: <b>{unitName}</b></div>");
+            sb.AppendLine($"          <div class=\"meta-line\">Группа: <b>{encodedGroup}</b> | Коэффициент c: <code>{bench.FittedCoefficient:E3}</code> | Ошибка аппроксимации: <code>{bench.ErrorPercent:F2}%</code> | Измерение: <b>{unitName}</b></div>");
 
             if (algo.Group == "Матрицы")
             {
@@ -732,7 +732,7 @@ public class ReportService
             sb.AppendLine($"### {algo.Name} ({algo.TheoreticalComplexityLabel})\n");
             sb.AppendLine($"- **Группа:** {algo.Group}");
             sb.AppendLine($"- **Коэффициент c:** `{bench.FittedCoefficient:E3}`");
-            sb.AppendLine($"- **MSE:** `{bench.MSE:E3}`");
+            sb.AppendLine($"- **Ошибка аппроксимации:** `{bench.ErrorPercent:F2}%`");
             sb.AppendLine($"- **Единица измерения:** {bench.UnitLabel}\n");
             sb.AppendLine($"![{algo.Name}]({chartPath})\n");
 
@@ -758,17 +758,17 @@ public class ReportService
         }
 
         sb.AppendLine("## 4. Сводная таблица алгоритмов\n");
-        sb.AppendLine("| Алгоритм | Класс | c | MSE | Измерение |");
+        sb.AppendLine("| Алгоритм | Класс | c | Ошибка, % | Измерение |");
         sb.AppendLine("|---|---|---|---|---|");
         foreach (var (algo, bench, _) in results)
         {
-            sb.AppendLine($"| {algo.Name} | {algo.TheoreticalComplexityLabel} | `{bench.FittedCoefficient:E2}` | `{bench.MSE:E2}` | {bench.UnitLabel} |");
+            sb.AppendLine($"| {algo.Name} | {algo.TheoreticalComplexityLabel} | `{bench.FittedCoefficient:E2}` | `{bench.ErrorPercent:F2}` | {bench.UnitLabel} |");
         }
         sb.AppendLine();
 
         sb.AppendLine("## 5. Выводы\n");
         sb.AppendLine("1. Экспериментальные данные подтверждают теоретические оценки сложности.");
-        sb.AppendLine("2. MSE показывает качество аппроксимации: чем меньше, тем точнее теория описывает процесс.");
+        sb.AppendLine("2. Ошибка аппроксимации рассчитывается как 100 × √(Σ(эксп − теор)² / Σэксп²): чем меньше процент, тем точнее теория описывает процесс.");
         sb.AppendLine("3. Преимущество эффективных алгоритмов: Горнер O(n) над наивным O(n²), QuickSort O(n log n) над BubbleSort O(n²), бинарное возведение в степень O(log n) над наивным O(n).");
 
         return sb.ToString();

@@ -172,7 +172,7 @@ public class DatabaseService
                 Results = grouped
             };
 
-            // Пересчёт МНК и MSE
+            // Пересчёт МНК
             double numerator = 0, denominator = 0;
             foreach (var r in result.Results)
             {
@@ -184,15 +184,10 @@ public class DatabaseService
             double c = denominator > 0 ? numerator / denominator : 0;
             result.FittedCoefficient = c;
 
-            double sumSquaredErrors = 0;
             foreach (var r in result.Results)
             {
                 r.TheoreticalTimeMs = c * theoreticalFunc(r.N);
-                double actualVal = isStepBased ? r.StepCount : r.AverageTimeMs;
-                double error = actualVal - r.TheoreticalTimeMs;
-                sumSquaredErrors += error * error;
             }
-            result.MSE = result.Results.Count > 0 ? sumSquaredErrors / result.Results.Count : 0;
 
             return result;
         }

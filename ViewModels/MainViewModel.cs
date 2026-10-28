@@ -127,7 +127,7 @@ public partial class MainViewModel : ViewModelBase
             Results.Clear();
             foreach (var r in value.LastResult.Results) Results.Add(r);
             RenderChart(value.LastResult);
-            StatusText = $"{value.Name} | c={value.LastResult.FittedCoefficient:E2} | MSE={value.LastResult.MSE:E2}";
+            StatusText = $"{value.Name} | c={value.LastResult.FittedCoefficient:E2} | Ошибка = {value.LastResult.ErrorPercent:F2}%";
             CacheStatusText = $"Данные готовы ({value.LastResult.Results.Count} точек)";
             CompareSelectedCommand.NotifyCanExecuteChanged();
             return;
@@ -157,7 +157,7 @@ public partial class MainViewModel : ViewModelBase
                             Results.Clear();
                             foreach (var r in cached.Results) Results.Add(r);
                             RenderChart(cached);
-                            StatusText = $"Загружено из кэша БД: {value.Name} | c={cached.FittedCoefficient:E2} | MSE={cached.MSE:E2}";
+                            StatusText = $"Загружено из кэша БД: {value.Name} | c={cached.FittedCoefficient:E2} | Ошибка = {cached.ErrorPercent:F2}%";
                             CacheStatusText = $"Кэш: загружены данные для {sizes.Length} точек";
                             CompareSelectedCommand.NotifyCanExecuteChanged();
                         }
@@ -266,8 +266,8 @@ public partial class MainViewModel : ViewModelBase
             RenderChart(benchmarkResult);
 
             StatusText = loadedFromCache
-                ? $"Из кэша: {algo.Name} | c = {benchmarkResult.FittedCoefficient:E3} | MSE = {benchmarkResult.MSE:E3}"
-                : $"Готово: {algo.Name} | c = {benchmarkResult.FittedCoefficient:E3} | MSE = {benchmarkResult.MSE:E3}";
+                ? $"Из кэша: {algo.Name} | c = {benchmarkResult.FittedCoefficient:E3} | Ошибка = {benchmarkResult.ErrorPercent:F2}%"
+                : $"Готово: {algo.Name} | c = {benchmarkResult.FittedCoefficient:E3} | Ошибка = {benchmarkResult.ErrorPercent:F2}%";
         }
         catch (OperationCanceledException)
         {
@@ -351,7 +351,7 @@ public partial class MainViewModel : ViewModelBase
                     foreach (var r in result.Results) Results.Add(r);
                     RenderChart(result);
 
-                    StatusText = $"[{done}/{total}] {algo.Name} | c={result.FittedCoefficient:E2} | MSE={result.MSE:E2}";
+                    StatusText = $"[{done}/{total}] {algo.Name} | c={result.FittedCoefficient:E2} | Ошибка = {result.ErrorPercent:F2}%";
                 }
                 catch (OperationCanceledException)
                 {

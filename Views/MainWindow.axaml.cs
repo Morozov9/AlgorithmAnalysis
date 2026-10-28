@@ -123,7 +123,7 @@ public partial class MainWindow : Window
             theoPlot.LineWidth = 2.2f;
             theoPlot.LinePattern = LinePattern.Dashed;
 
-            plt.Title($"{benchmark.AlgorithmName}  |  c = {benchmark.FittedCoefficient:E2}  |  MSE = {benchmark.MSE:E2}");
+            plt.Title($"{benchmark.AlgorithmName}  |  c = {benchmark.FittedCoefficient:E2}  |  Ошибка = {benchmark.ErrorPercent:F2}%");
             plt.XLabel(benchmark.XAxisTitle);
             plt.YLabel(benchmark.YAxisTitle);
             plt.ShowLegend(Alignment.UpperLeft);

@@ -100,7 +100,7 @@ public class BenchmarkService
                     progress?.Invoke((double)(i + 1) / totalExperiments);
                 }
 
-                // 4. Аппроксимация МНК + MSE
+                // 4. Аппроксимация МНК
                 FitTheoreticalCurve(algorithm, result);
 
                 return result;
@@ -130,7 +130,7 @@ public class BenchmarkService
 
     /// <summary>
     /// Подбирает коэффициент c для теоретической кривой T = c·f(n)
-    /// методом наименьших квадратов и вычисляет MSE.
+    /// методом наименьших квадратов.
     /// </summary>
     private static void FitTheoreticalCurve(AbstractAlgorithm algorithm, BenchmarkResult result)
     {
@@ -148,19 +148,11 @@ public class BenchmarkService
         double c = denominator > 0 ? numerator / denominator : 0;
         result.FittedCoefficient = c;
 
-        // Заполняем теоретическое значение и считаем MSE
-        double sumSquaredErrors = 0;
+        // Заполняем теоретические значения
         foreach (var r in result.Results)
         {
             r.TheoreticalTimeMs = c * algorithm.TheoreticalComplexity(r.N);
-
-            double actualVal = result.IsStepBased ? r.StepCount : r.AverageTimeMs;
-            double error = actualVal - r.TheoreticalTimeMs;
-            sumSquaredErrors += error * error;
         }
 
-        result.MSE = result.Results.Count > 0
-            ? sumSquaredErrors / result.Results.Count
-            : 0;
     }
 }
